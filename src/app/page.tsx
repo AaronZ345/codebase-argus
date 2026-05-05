@@ -10,9 +10,9 @@ import {
 import { formatDate, formatNumber, relativeTime, shortSha } from "@/lib/format";
 import type { LocalAnalysisReport } from "@/lib/local-analyzer";
 
-const DEFAULT_UPSTREAM = "chenhg5/cc-connect";
-const DEFAULT_FORK = "AaronZ345/cc-connect";
-const DEFAULT_PR_HEAD = "Cigarrr/cc-connect";
+const DEFAULT_UPSTREAM = "";
+const DEFAULT_FORK = "";
+const DEFAULT_PR_HEAD = "";
 const STORAGE_KEY = "fork-drift-sentinel:repos";
 
 type SavedRepos = {
@@ -146,7 +146,7 @@ export default function Home() {
             <input
               value={upstream}
               onChange={(event) => setUpstream(event.target.value)}
-              placeholder="owner/repo"
+              placeholder="upstream-owner/repo"
               spellCheck={false}
             />
           </label>
@@ -155,7 +155,7 @@ export default function Home() {
             <input
               value={fork}
               onChange={(event) => setFork(event.target.value)}
-              placeholder="owner/repo"
+              placeholder="fork-owner/repo"
               spellCheck={false}
             />
           </label>
@@ -203,7 +203,7 @@ export default function Home() {
                 setLocalError("");
               }}
             >
-              Reset sample
+              Clear
             </button>
           </div>
           <p className="privacy-note">
@@ -243,9 +243,10 @@ export default function Home() {
         <section className="empty-state">
           <h2>Start with a repository pair.</h2>
           <p>
-            The default pair points at cc-connect. Run it to inspect the same
-            fork/upstream maintenance problem this tool is built for. If GitHub
-            API rate limits block the browser report, use Local Risk directly.
+            Enter an upstream repository and a fork repository. If the PR head
+            fork differs from the branch you track for drift, fill that in too.
+            If GitHub API rate limits block the browser report, use Local Risk
+            directly.
           </p>
         </section>
       )}
@@ -598,9 +599,9 @@ function buildSummary(report: ForkReport | null) {
         detail: "No write scopes, no database, no token persistence.",
       },
       {
-        label: "Default pair",
-        value: "cc-connect",
-        detail: "Configured for the current upstream/fork workflow.",
+        label: "Inputs",
+        value: "Repos",
+        detail: "Use owner/repo values or GitHub repository URLs.",
       },
       {
         label: "Signal",
