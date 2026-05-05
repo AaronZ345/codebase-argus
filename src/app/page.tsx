@@ -8,6 +8,7 @@ import {
   PullRequestStatus,
 } from "@/lib/github";
 import { formatDate, formatNumber, relativeTime, shortSha } from "@/lib/format";
+import type { LocalAnalysisReport } from "@/lib/local-analyzer";
 
 const DEFAULT_UPSTREAM = "chenhg5/cc-connect";
 const DEFAULT_FORK = "AaronZ345/cc-connect";
@@ -26,8 +27,13 @@ export default function Home() {
   const [prHead, setPrHead] = useState(DEFAULT_PR_HEAD);
   const [token, setToken] = useState("");
   const [report, setReport] = useState<ForkReport | null>(null);
+  const [localReport, setLocalReport] = useState<LocalAnalysisReport | null>(
+    null,
+  );
   const [error, setError] = useState("");
+  const [localError, setLocalError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
 
   useEffect(() => {
     const restore = window.setTimeout(() => {
@@ -67,6 +73,8 @@ export default function Home() {
         token,
       });
       setReport(nextReport);
+      setLocalReport(null);
+      setLocalError("");
       window.localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({ upstream, fork, prHead }),
@@ -76,6 +84,41 @@ export default function Home() {
       setError(caught instanceof Error ? caught.message : "Unknown error.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleLocalAnalyze() {
+    setLocalError("");
+    setLocalLoading(true);
+    try {
+      const response = await fetch("/api/local-analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          upstream,
+          fork,
+          upstreamBranch: report?.upstream.defaultBranch ?? "main",
+          forkBranch: report?.fork.defaultBranch ?? "main",
+        }),
+      });
+      const body = (await response.json()) as
+        | LocalAnalysisReport
+        | { error?: string };
+      if (!response.ok) {
+        throw new Error(
+          "error" in body && body.error ? body.error : "Local analysis failed.",
+        );
+      }
+      setLocalReport(body as LocalAnalysisReport);
+    } catch (caught) {
+      setLocalReport(null);
+      setLocalError(
+        caught instanceof Error ? caught.message : "Local analysis failed.",
+      );
+    } finally {
+      setLocalLoading(false);
     }
   }
 
@@ -142,12 +185,22 @@ export default function Home() {
             <button
               type="button"
               className="secondary-button"
+              onClick={handleLocalAnalyze}
+              disabled={localLoading}
+            >
+              {localLoading ? "Running git..." : "Run local risk"}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
               onClick={() => {
                 setUpstream(DEFAULT_UPSTREAM);
                 setFork(DEFAULT_FORK);
                 setPrHead(DEFAULT_PR_HEAD);
                 setReport(null);
+                setLocalReport(null);
                 setError("");
+                setLocalError("");
               }}
             >
               Reset sample
@@ -172,6 +225,13 @@ export default function Home() {
         ))}
       </section>
 
+      <LocalRiskPanel
+        localReport={localReport}
+        localError={localError}
+        loading={localLoading}
+        onAnalyze={handleLocalAnalyze}
+      />
+
       {report ? (
         <section className="dashboard">
           <DriftPanel report={report} />
@@ -184,7 +244,8 @@ export default function Home() {
           <h2>Start with a repository pair.</h2>
           <p>
             The default pair points at cc-connect. Run it to inspect the same
-            fork/upstream maintenance problem this tool is built for.
+            fork/upstream maintenance problem this tool is built for. If GitHub
+            API rate limits block the browser report, use Local Risk directly.
           </p>
         </section>
       )}
@@ -311,6 +372,133 @@ function PullRequestPanel({ report }: { report: ForkReport }) {
   );
 }
 
+function LocalRiskPanel({
+  localReport,
+  localError,
+  loading,
+  onAnalyze,
+}: {
+  localReport: LocalAnalysisReport | null;
+  localError: string;
+  loading: boolean;
+  onAnalyze: () => Promise<void>;
+}) {
+  return (
+    <article className="panel local-risk-panel">
+      <div className="panel-header">
+        <div>
+          <h2>Rebase Risk</h2>
+          <p>
+            Runs local git in a private cache to project conflicts and prepare
+            an agent-safe runbook.
+          </p>
+        </div>
+        <button type="button" onClick={onAnalyze} disabled={loading}>
+          {loading ? "Running git..." : "Run local analysis"}
+        </button>
+      </div>
+
+      {localError ? <div className="inline-error">{localError}</div> : null}
+
+      {localReport ? (
+        <div className="risk-grid">
+          <div className="risk-summary">
+            <StatusPill
+              tone={localReport.mergeTree.clean ? "good" : "bad"}
+              label={localReport.mergeTree.clean ? "Clean projection" : "Conflict"}
+            />
+            <strong>
+              {localReport.compare.behindBy} behind ·{" "}
+              {localReport.compare.aheadBy} ahead
+            </strong>
+            <p>
+              Compared {localReport.fork.gitRef} against{" "}
+              {localReport.upstream.gitRef} in {localReport.cache.label}.
+            </p>
+          </div>
+
+          <div className="risk-block">
+            <h3>Conflict files</h3>
+            {localReport.mergeTree.conflictFiles.length ? (
+              <ul className="compact-list">
+                {localReport.mergeTree.conflictFiles.map((file) => (
+                  <li key={file}>
+                    <code>{file}</code>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="small-muted">
+                `git merge-tree` reports no content conflicts.
+              </p>
+            )}
+          </div>
+
+          <div className="risk-block">
+            <h3>Patch-equivalent commits</h3>
+            {localReport.cherry.covered.length ? (
+              <CommitMiniList commits={localReport.cherry.covered.slice(0, 8)} />
+            ) : (
+              <p className="small-muted">No patch-equivalent commits found.</p>
+            )}
+          </div>
+
+          <div className="risk-block">
+            <h3>Still unique</h3>
+            {localReport.cherry.unique.length ? (
+              <CommitMiniList commits={localReport.cherry.unique.slice(0, 8)} />
+            ) : (
+              <p className="small-muted">No unique fork commits remain.</p>
+            )}
+          </div>
+
+          {localReport.mergeTree.messages.length ? (
+            <div className="risk-block wide">
+              <h3>Merge-tree messages</h3>
+              <pre>{localReport.mergeTree.messages.join("\n")}</pre>
+            </div>
+          ) : null}
+
+          <div className="risk-block wide">
+            <h3>Agent runbook</h3>
+            <ol className="runbook">
+              {localReport.runbook.map((command) => (
+                <li key={command}>
+                  <code>{command}</code>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      ) : (
+        <p className="muted">
+          Run local analysis to clone/fetch repositories into `.cache/repos`.
+          It does not need a GitHub token for public repos and will not modify
+          your working copy. Without a GitHub report it assumes `main` as both
+          branch names.
+        </p>
+      )}
+    </article>
+  );
+}
+
+function CommitMiniList({
+  commits,
+}: {
+  commits: Array<{ sha: string; subject: string }>;
+}) {
+  return (
+    <ul className="compact-list">
+      {commits.map((commit) => (
+        <li key={commit.sha}>
+          <code>{shortSha(commit.sha)}</code>
+          <span>{commit.subject}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function CleanupPanel({ candidates }: { candidates: CleanupCandidate[] }) {
   return (
     <article className="panel cleanup-panel">
@@ -378,6 +566,10 @@ function MethodPanel({ report }: { report: ForkReport }) {
         <li>
           Cleanup candidates compare fork-ahead subjects against the latest 100
           upstream commits.
+        </li>
+        <li>
+          Rebase Risk uses local git commands in `.cache/repos`; it creates no
+          commits and does not push.
         </li>
         <li>
           The app never writes to GitHub and never stores your token.
