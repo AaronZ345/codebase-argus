@@ -35,14 +35,6 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-The default repository pair is:
-
-```text
-upstream: chenhg5/cc-connect
-fork:     AaronZ345/cc-connect
-PR head:  Cigarrr/cc-connect
-```
-
 Public repositories work without a token, but unauthenticated GitHub API calls
 are rate limited. A fine-grained personal access token with read-only public
 repository access is enough for smoother testing.
