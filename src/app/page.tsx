@@ -175,6 +175,7 @@ export default function Home() {
               onChange={(event) => setToken(event.target.value)}
               placeholder="Only used in this browser session"
               type="password"
+              autoComplete="off"
               spellCheck={false}
             />
           </label>
@@ -201,6 +202,7 @@ export default function Home() {
                 setLocalReport(null);
                 setError("");
                 setLocalError("");
+                window.localStorage.removeItem(STORAGE_KEY);
               }}
             >
               Clear

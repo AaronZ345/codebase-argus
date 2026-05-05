@@ -12,6 +12,16 @@ type RequestBody = {
 
 export async function POST(request: Request) {
   try {
+    if (process.env.VERCEL) {
+      return NextResponse.json(
+        {
+          error:
+            "Local rebase risk analysis is available only when running this app locally.",
+        },
+        { status: 501 },
+      );
+    }
+
     const body = (await request.json()) as RequestBody;
     if (!body.upstream || !body.fork || !body.upstreamBranch || !body.forkBranch) {
       return NextResponse.json(
