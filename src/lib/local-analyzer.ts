@@ -2,6 +2,11 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import {
+  buildRunbookModes,
+  parseRangeDiffSummary,
+} from "./agent-workflow";
+import type { RunbookModes } from "./agent-workflow";
 
 export type LocalAnalyzeInput = {
   upstream: string;
@@ -43,9 +48,18 @@ export type LocalAnalysisReport = {
     covered: LocalCommit[];
     unique: LocalCommit[];
   };
+  rangeDiff: {
+    summary: {
+      added: number;
+      removed: number;
+      changed: number;
+    };
+    lines: string[];
+  };
   cache: {
     label: string;
   };
+  runbooks: RunbookModes;
   runbook: string[];
 };
 
@@ -92,6 +106,21 @@ export async function analyzeLocalDrift(
   );
 
   const cherry = await git(repoDir, ["cherry", "-v", upstreamGitRef, forkGitRef]);
+  const rangeDiff = await git(
+    repoDir,
+    ["range-diff", "--no-color", `${upstreamGitRef}...${forkGitRef}`],
+    [0, 1],
+  );
+  const runbooks = buildRunbookModes({
+    upstream: {
+      repo: upstream.fullName,
+      branch: upstreamBranch,
+    },
+    fork: {
+      repo: fork.fullName,
+      branch: forkBranch,
+    },
+  });
 
   return {
     generatedAt: new Date().toISOString(),
@@ -111,15 +140,12 @@ export async function analyzeLocalDrift(
     },
     mergeTree: parseMergeTreeNameOnly(mergeTreeCommand),
     cherry: parseGitCherry(cherry.stdout),
+    rangeDiff: parseRangeDiffSummary(rangeDiff.stdout),
     cache: {
       label: `.cache/repos/${path.basename(repoDir)}`,
     },
-    runbook: buildRunbook({
-      upstream,
-      fork,
-      upstreamBranch,
-      forkBranch,
-    }),
+    runbooks,
+    runbook: runbooks.execute,
   };
 }
 
@@ -242,25 +268,6 @@ async function ensureAnalysisRepository(
   ]);
 
   return repoDir;
-}
-
-function buildRunbook(input: {
-  upstream: RepoRef;
-  fork: RepoRef;
-  upstreamBranch: string;
-  forkBranch: string;
-}): string[] {
-  return [
-    `git remote add upstream ${githubCloneUrl(input.upstream)} 2>/dev/null || git remote set-url upstream ${githubCloneUrl(input.upstream)}`,
-    `git remote add fork ${githubCloneUrl(input.fork)} 2>/dev/null || git remote set-url fork ${githubCloneUrl(input.fork)}`,
-    `git fetch --prune upstream ${input.upstreamBranch}`,
-    `git fetch --prune fork ${input.forkBranch}`,
-    `git branch backup/fork-drift-before-rebase-$(date +%Y%m%d-%H%M%S) fork/${input.forkBranch}`,
-    `git switch -C local/rebase-${input.forkBranch.replaceAll("/", "-")} fork/${input.forkBranch}`,
-    `git rebase upstream/${input.upstreamBranch}`,
-    `npm run lint && npm run build`,
-    `git push --force-with-lease fork HEAD:${input.forkBranch}`,
-  ];
 }
 
 function githubCloneUrl(repo: RepoRef): string {

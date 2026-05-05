@@ -24,9 +24,19 @@ comments, or request write scopes.
 - Fetch pull request mergeability and check-run summaries.
 - Classify fork-ahead commits with lightweight cleanup heuristics.
 - Run a local git-backed rebase risk analysis in `.cache/repos`.
-- Generate an agent-safe command runbook for fetch, backup, rebase, test, and
-  force-with-lease push.
+- Generate agent-safe runbooks in inspect, prepare, and gated execute modes.
+- Export a ready-to-copy agent prompt with explicit stop conditions.
+- Build a conflict dossier from local git output, including file-level risk
+  hints and resolution instructions.
+- Show `git cherry` and `git range-diff` patch evidence so maintainers can see
+  what is covered, unique, or semantically changed.
+- Parse an agent execution log after a run and flag missing fetch, backup,
+  rebase, test, conflict, or push signals.
 - Keep the optional GitHub token only in browser memory.
+
+The hosted demo can run the browser-only GitHub API report. Local rebase risk,
+range-diff evidence, and git-backed conflict dossiers require running the app on
+your own machine because they execute local `git` commands in `.cache/repos`.
 
 ## Local Development
 
@@ -55,6 +65,8 @@ Current scope:
 - No token persistence.
 - No GitHub App installation flow yet.
 - No automatic push, rebase, merge, branch deletion, or PR closure.
+- Agent integration is prompt/runbook/log-review based; it does not control an
+  agent directly or grant write access.
 
 Planned next steps:
 
@@ -62,5 +74,6 @@ Planned next steps:
 - Add a shareable drift report route.
 - Add exact temporary-worktree rebase simulation for cases where merge-tree is
   too coarse.
-- Add AI-assisted explanation for conflicted hunks, gated behind explicit user
-  action.
+- Add optional AI-assisted explanation for conflicted hunks, gated behind
+  explicit user action.
+- Add a GitHub Actions mode that posts a read-only drift report on a schedule.

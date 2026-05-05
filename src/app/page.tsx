@@ -2,11 +2,15 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
-  CleanupCandidate,
+  buildAgentPrompt,
+  buildConflictDossier,
+  parseAgentSessionLog,
+} from "@/lib/agent-workflow";
+import type { AgentLogSummary, RunbookMode } from "@/lib/agent-workflow";
+import {
   fetchForkReport,
-  ForkReport,
-  PullRequestStatus,
 } from "@/lib/github";
+import type { CleanupCandidate, ForkReport, PullRequestStatus } from "@/lib/github";
 import { formatDate, formatNumber, relativeTime, shortSha } from "@/lib/format";
 import type { LocalAnalysisReport } from "@/lib/local-analyzer";
 
@@ -34,6 +38,9 @@ export default function Home() {
   const [localError, setLocalError] = useState("");
   const [loading, setLoading] = useState(false);
   const [localLoading, setLocalLoading] = useState(false);
+  const [runbookMode, setRunbookMode] = useState<RunbookMode>("inspect");
+  const [agentLog, setAgentLog] = useState("");
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
   const hostedDemo = process.env.NEXT_PUBLIC_HOSTED_DEMO === "true";
 
   useEffect(() => {
@@ -132,6 +139,30 @@ export default function Home() {
   }
 
   const summary = useMemo(() => buildSummary(report), [report]);
+  const agentPrompt = useMemo(
+    () =>
+      buildAgentPrompt({
+        upstream: upstream || "upstream-owner/repo",
+        fork: fork || "fork-owner/repo",
+        upstreamBranch:
+          report?.upstream.defaultBranch ?? localReport?.upstream.branch ?? "main",
+        forkBranch: report?.fork.defaultBranch ?? localReport?.fork.branch ?? "main",
+        mode: runbookMode,
+        report: localReport,
+      }),
+    [
+      fork,
+      localReport,
+      report?.fork.defaultBranch,
+      report?.upstream.defaultBranch,
+      runbookMode,
+      upstream,
+    ],
+  );
+  const agentLogSummary = useMemo(
+    () => (agentLog.trim() ? parseAgentSessionLog(agentLog) : null),
+    [agentLog],
+  );
 
   return (
     <main className="shell">
@@ -248,6 +279,22 @@ export default function Home() {
         hostedDemo={hostedDemo}
       />
 
+      <AgentWorkflowPanel
+        mode={runbookMode}
+        onModeChange={setRunbookMode}
+        prompt={agentPrompt}
+        copiedPrompt={copiedPrompt}
+        onCopyPrompt={async () => {
+          await navigator.clipboard.writeText(agentPrompt);
+          setCopiedPrompt(true);
+          window.setTimeout(() => setCopiedPrompt(false), 1400);
+        }}
+        localReport={localReport}
+        agentLog={agentLog}
+        onAgentLogChange={setAgentLog}
+        agentLogSummary={agentLogSummary}
+      />
+
       {report ? (
         <section className="dashboard">
           <DriftPanel report={report} />
@@ -267,6 +314,192 @@ export default function Home() {
         </section>
       )}
     </main>
+  );
+}
+
+function AgentWorkflowPanel({
+  mode,
+  onModeChange,
+  prompt,
+  copiedPrompt,
+  onCopyPrompt,
+  localReport,
+  agentLog,
+  onAgentLogChange,
+  agentLogSummary,
+}: {
+  mode: RunbookMode;
+  onModeChange: (mode: RunbookMode) => void;
+  prompt: string;
+  copiedPrompt: boolean;
+  onCopyPrompt: () => Promise<void>;
+  localReport: LocalAnalysisReport | null;
+  agentLog: string;
+  onAgentLogChange: (value: string) => void;
+  agentLogSummary: AgentLogSummary | null;
+}) {
+  const dossier = localReport ? buildConflictDossier(localReport) : null;
+
+  return (
+    <article className="panel agent-panel">
+      <div className="panel-header">
+        <div>
+          <h2>Agent Workflow</h2>
+          <p>
+            Export a safe task prompt, inspect conflict evidence, and paste an
+            agent execution log back for a quick safety read.
+          </p>
+        </div>
+        <label className="mode-picker">
+          Mode
+          <select
+            value={mode}
+            onChange={(event) => onModeChange(event.target.value as RunbookMode)}
+          >
+            <option value="inspect">Inspect only</option>
+            <option value="prepare">Prepare rebase</option>
+            <option value="execute">Execute with gate</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="agent-grid">
+        <div className="agent-block wide">
+          <div className="block-heading">
+            <h3>Prompt export</h3>
+            <button type="button" className="secondary-button" onClick={onCopyPrompt}>
+              {copiedPrompt ? "Copied" : "Copy prompt"}
+            </button>
+          </div>
+          <textarea readOnly value={prompt} className="prompt-box" />
+        </div>
+
+        <div className="agent-block">
+          <h3>Conflict dossier</h3>
+          {dossier ? (
+            <div className="dossier">
+              <StatusPill
+                tone={dossier.risk === "clean" ? "good" : "bad"}
+                label={dossier.risk === "clean" ? "Clean" : "Conflict"}
+              />
+              <p>{dossier.summary}</p>
+              {dossier.files.length ? (
+                <ul className="compact-list">
+                  {dossier.files.map((file) => (
+                    <li key={file.path}>
+                      <code>{file.path}</code>
+                      <span>
+                        {file.risk} risk · {file.reason}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <ol className="instruction-list">
+                {dossier.instructions.map((instruction) => (
+                  <li key={instruction}>{instruction}</li>
+                ))}
+              </ol>
+            </div>
+          ) : (
+            <p className="small-muted">
+              Run local risk to generate conflict-specific agent instructions.
+            </p>
+          )}
+        </div>
+
+        <div className="agent-block">
+          <h3>Patch evidence</h3>
+          {localReport ? (
+            <div className="range-summary">
+              <div>
+                <strong>{localReport.cherry.covered.length}</strong>
+                <span>covered</span>
+              </div>
+              <div>
+                <strong>{localReport.cherry.unique.length}</strong>
+                <span>unique</span>
+              </div>
+              <div>
+                <strong>{localReport.rangeDiff.summary.changed}</strong>
+                <span>changed</span>
+              </div>
+              <pre>
+                {localReport.rangeDiff.lines.slice(0, 24).join("\n") ||
+                  "No range-diff output."}
+              </pre>
+            </div>
+          ) : (
+            <p className="small-muted">
+              Local risk adds git cherry and range-diff evidence here.
+            </p>
+          )}
+        </div>
+
+        <div className="agent-block wide">
+          <div className="block-heading">
+            <h3>Agent session log review</h3>
+            {agentLogSummary ? (
+              <StatusPill
+                tone={agentLogSummary.safeToPush ? "good" : "warn"}
+                label={agentLogSummary.safeToPush ? "Looks safe" : "Needs review"}
+              />
+            ) : null}
+          </div>
+          <textarea
+            value={agentLog}
+            onChange={(event) => onAgentLogChange(event.target.value)}
+            className="log-box"
+            placeholder="Paste the agent's execution log here after it runs the prompt..."
+          />
+          {agentLogSummary ? <AgentLogSummaryView summary={agentLogSummary} /> : null}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function AgentLogSummaryView({ summary }: { summary: AgentLogSummary }) {
+  const rows = [
+    ["Fetched", summary.fetched],
+    ["Backup", summary.backupCreated],
+    ["Rebase", summary.rebaseAttempted],
+    ["Tests passed", summary.testsPassed],
+    ["Tests failed", summary.testsFailed],
+    ["Pushed", summary.pushed],
+    ["Safe to push", summary.safeToPush],
+  ] as const;
+
+  return (
+    <div className="log-summary">
+      <div className="log-signal-grid">
+        {rows.map(([label, active]) => (
+          <span className={active ? "active" : ""} key={label}>
+            {label}
+          </span>
+        ))}
+      </div>
+      {summary.conflicts.length ? (
+        <div>
+          <h4>Conflicts</h4>
+          <ul className="compact-list">
+            {summary.conflicts.map((file) => (
+              <li key={file}>
+                <code>{file}</code>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <div>
+        <h4>Notes</h4>
+        <ul className="compact-list">
+          {summary.notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
 
