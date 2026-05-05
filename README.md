@@ -3,6 +3,8 @@
 Fork Drift Sentinel is a read-only GitHub API dashboard for people who maintain
 long-lived forks and upstream pull requests.
 
+Live demo: <https://aaronz345.github.io/fork-drift-sentinel/>
+
 It answers the maintenance questions that generic PR dashboards usually leave
 scattered across GitHub pages:
 
