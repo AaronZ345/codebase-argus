@@ -34,6 +34,7 @@ export default function Home() {
   const [localError, setLocalError] = useState("");
   const [loading, setLoading] = useState(false);
   const [localLoading, setLocalLoading] = useState(false);
+  const hostedDemo = process.env.NEXT_PUBLIC_HOSTED_DEMO === "true";
 
   useEffect(() => {
     const restore = window.setTimeout(() => {
@@ -88,6 +89,14 @@ export default function Home() {
   }
 
   async function handleLocalAnalyze() {
+    if (hostedDemo) {
+      setLocalReport(null);
+      setLocalError(
+        "Local rebase risk analysis is available only when running the app on your machine.",
+      );
+      return;
+    }
+
     setLocalError("");
     setLocalLoading(true);
     try {
@@ -187,9 +196,13 @@ export default function Home() {
               type="button"
               className="secondary-button"
               onClick={handleLocalAnalyze}
-              disabled={localLoading}
+              disabled={localLoading || hostedDemo}
             >
-              {localLoading ? "Running git..." : "Run local risk"}
+              {hostedDemo
+                ? "Local risk is local-only"
+                : localLoading
+                  ? "Running git..."
+                  : "Run local risk"}
             </button>
             <button
               type="button"
@@ -232,6 +245,7 @@ export default function Home() {
         localError={localError}
         loading={localLoading}
         onAnalyze={handleLocalAnalyze}
+        hostedDemo={hostedDemo}
       />
 
       {report ? (
@@ -380,11 +394,13 @@ function LocalRiskPanel({
   localError,
   loading,
   onAnalyze,
+  hostedDemo,
 }: {
   localReport: LocalAnalysisReport | null;
   localError: string;
   loading: boolean;
   onAnalyze: () => Promise<void>;
+  hostedDemo: boolean;
 }) {
   return (
     <article className="panel local-risk-panel">
@@ -396,8 +412,16 @@ function LocalRiskPanel({
             an agent-safe runbook.
           </p>
         </div>
-        <button type="button" onClick={onAnalyze} disabled={loading}>
-          {loading ? "Running git..." : "Run local analysis"}
+        <button
+          type="button"
+          onClick={onAnalyze}
+          disabled={loading || hostedDemo}
+        >
+          {hostedDemo
+            ? "Local-only"
+            : loading
+              ? "Running git..."
+              : "Run local analysis"}
         </button>
       </div>
 
@@ -475,10 +499,9 @@ function LocalRiskPanel({
         </div>
       ) : (
         <p className="muted">
-          Run local analysis to clone/fetch repositories into `.cache/repos`.
-          It does not need a GitHub token for public repos and will not modify
-          your working copy. Without a GitHub report it assumes `main` as both
-          branch names.
+          {hostedDemo
+            ? "Hosted demo cannot run local git. Clone the repository and run the app locally to use rebase risk analysis."
+            : "Run local analysis to clone/fetch repositories into `.cache/repos`. It does not need a GitHub token for public repos and will not modify your working copy. Without a GitHub report it assumes `main` as both branch names."}
         </p>
       )}
     </article>
