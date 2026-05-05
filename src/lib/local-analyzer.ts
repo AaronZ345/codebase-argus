@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import {
   buildRunbookModes,
@@ -56,11 +56,19 @@ export type LocalAnalysisReport = {
     };
     lines: string[];
   };
+  rebaseSimulation: RebaseSimulationResult;
   cache: {
     label: string;
   };
   runbooks: RunbookModes;
   runbook: string[];
+};
+
+export type RebaseSimulationResult = {
+  clean: boolean;
+  conflictFiles: string[];
+  statusLines: string[];
+  logLines: string[];
 };
 
 type CommandResult = {
@@ -111,6 +119,11 @@ export async function analyzeLocalDrift(
     ["range-diff", "--no-color", `${upstreamGitRef}...${forkGitRef}`],
     [0, 1],
   );
+  const rebaseSimulation = await simulateRebaseInWorktree(
+    repoDir,
+    upstreamGitRef,
+    forkGitRef,
+  );
   const runbooks = buildRunbookModes({
     upstream: {
       repo: upstream.fullName,
@@ -141,11 +154,44 @@ export async function analyzeLocalDrift(
     mergeTree: parseMergeTreeNameOnly(mergeTreeCommand),
     cherry: parseGitCherry(cherry.stdout),
     rangeDiff: parseRangeDiffSummary(rangeDiff.stdout),
+    rebaseSimulation,
     cache: {
       label: `.cache/repos/${path.basename(repoDir)}`,
     },
     runbooks,
     runbook: runbooks.execute,
+  };
+}
+
+export function parseRebaseSimulationResult(input: {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  status: string;
+}): RebaseSimulationResult {
+  const statusLines = input.status.split(/\r?\n/).filter(Boolean);
+  const conflictFiles = Array.from(
+    new Set(
+      statusLines.flatMap((line) => {
+        const code = line.slice(0, 2);
+        if (!/^(AA|AU|DD|DU|UA|UD|UU)$/.test(code)) {
+          return [];
+        }
+        return [line.slice(3).trim()].filter(Boolean);
+      }),
+    ),
+  );
+  const logLines = `${input.stdout}\n${input.stderr}`
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 80);
+
+  return {
+    clean: input.exitCode === 0 && conflictFiles.length === 0,
+    conflictFiles,
+    statusLines,
+    logLines,
   };
 }
 
@@ -268,6 +314,38 @@ async function ensureAnalysisRepository(
   ]);
 
   return repoDir;
+}
+
+async function simulateRebaseInWorktree(
+  repoDir: string,
+  upstreamGitRef: string,
+  forkGitRef: string,
+): Promise<RebaseSimulationResult> {
+  const worktreeRoot = path.join(process.cwd(), ".cache", "worktrees");
+  await mkdir(worktreeRoot, { recursive: true });
+  const worktreeDir = path.join(
+    worktreeRoot,
+    `${path.basename(repoDir, ".git")}-${Date.now().toString(36)}`,
+  );
+
+  try {
+    await git(repoDir, ["worktree", "add", "--detach", worktreeDir, forkGitRef]);
+    const rebase = await git(
+      worktreeDir,
+      ["rebase", upstreamGitRef],
+      [0, 1],
+    );
+    const status = await git(worktreeDir, ["status", "--porcelain"], [0]);
+    return parseRebaseSimulationResult({
+      exitCode: rebase.exitCode,
+      stdout: rebase.stdout,
+      stderr: rebase.stderr,
+      status: status.stdout,
+    });
+  } finally {
+    await git(repoDir, ["worktree", "remove", "--force", worktreeDir], [0, 1]);
+    await rm(worktreeDir, { recursive: true, force: true });
+  }
 }
 
 function githubCloneUrl(repo: RepoRef): string {

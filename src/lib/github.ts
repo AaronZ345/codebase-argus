@@ -54,11 +54,16 @@ type GitHubPullRequest = {
   number: number;
   title: string;
   html_url: string;
+  state: "open" | "closed";
   draft: boolean;
+  body: string | null;
   created_at: string;
   updated_at: string;
   mergeable: boolean | null;
   mergeable_state?: string;
+  additions?: number;
+  deletions?: number;
+  changed_files?: number;
   user: {
     login: string;
   } | null;
@@ -81,6 +86,25 @@ type GitHubPullRequest = {
   labels: Array<{
     name: string;
   }>;
+};
+
+type GitHubPullRequestFile = {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  changes: number;
+  blob_url: string;
+  raw_url: string;
+  patch?: string;
+};
+
+type GitHubPullRequestReview = {
+  state: string;
+  submitted_at: string | null;
+  user: {
+    login: string;
+  } | null;
 };
 
 type GitHubCheckRuns = {
@@ -130,6 +154,51 @@ export type PullRequestStatus = {
     failing: number;
     pending: number;
   };
+};
+
+export type PullRequestFileChange = {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  changes: number;
+  blobUrl: string;
+  rawUrl: string;
+  patch?: string;
+};
+
+export type PullRequestReviewReport = {
+  generatedAt: string;
+  repository: RepositorySummary;
+  pullRequest: {
+    number: number;
+    title: string;
+    htmlUrl: string;
+    state: "open" | "closed";
+    draft: boolean;
+    author: string;
+    body: string;
+    baseRef: string;
+    headRef: string;
+    headRepo: string;
+    headSha: string;
+    createdAt: string;
+    updatedAt: string;
+    mergeable: boolean | null;
+    mergeableState: string;
+    additions: number;
+    deletions: number;
+    changedFiles: number;
+    labels: string[];
+  };
+  checks: PullRequestStatus["checks"];
+  reviews: Array<{
+    user: string;
+    state: string;
+    submittedAt: string;
+  }>;
+  commits: DriftCommit[];
+  files: PullRequestFileChange[];
 };
 
 export type CleanupCandidate = {
@@ -257,6 +326,88 @@ export async function fetchForkReport(input: {
     },
     pullRequests,
     cleanupCandidates,
+  };
+}
+
+export async function fetchPullRequestReviewReport(input: {
+  owner: string;
+  repo: string;
+  number: number;
+  token?: string;
+}): Promise<PullRequestReviewReport> {
+  const repoRef = parseRepoRef(`${input.owner}/${input.repo}`);
+
+  const [repository, detail] = await Promise.all([
+    githubRequest<GitHubRepository>(
+      `/repos/${repoRef.owner}/${repoRef.repo}`,
+      input.token,
+    ),
+    githubRequest<GitHubPullRequest>(
+      `/repos/${repoRef.owner}/${repoRef.repo}/pulls/${input.number}`,
+      input.token,
+    ),
+  ]);
+
+  const [files, commits, reviews, checks] = await Promise.all([
+    githubRequestPages<GitHubPullRequestFile>(
+      `/repos/${repoRef.owner}/${repoRef.repo}/pulls/${input.number}/files?per_page=100`,
+      input.token,
+      3,
+    ),
+    githubRequestPages<GitHubCompareCommit>(
+      `/repos/${repoRef.owner}/${repoRef.repo}/pulls/${input.number}/commits?per_page=100`,
+      input.token,
+      3,
+    ),
+    githubRequestPages<GitHubPullRequestReview>(
+      `/repos/${repoRef.owner}/${repoRef.repo}/pulls/${input.number}/reviews?per_page=100`,
+      input.token,
+      3,
+    ),
+    fetchChecks(detail, input.token),
+  ]);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    repository: mapRepository(repository),
+    pullRequest: {
+      number: detail.number,
+      title: detail.title,
+      htmlUrl: detail.html_url,
+      state: detail.state,
+      draft: detail.draft,
+      author: detail.user?.login ?? "unknown",
+      body: detail.body ?? "",
+      baseRef: detail.base.ref,
+      headRef: detail.head.ref,
+      headRepo: detail.head.repo?.full_name ?? "unknown",
+      headSha: detail.head.sha,
+      createdAt: detail.created_at,
+      updatedAt: detail.updated_at,
+      mergeable: detail.mergeable,
+      mergeableState: detail.mergeable_state ?? "unknown",
+      additions: detail.additions ?? 0,
+      deletions: detail.deletions ?? 0,
+      changedFiles: detail.changed_files ?? files.length,
+      labels: detail.labels.map((label) => label.name),
+    },
+    checks,
+    reviews: reviews.map((review) => ({
+      user: review.user?.login ?? "unknown",
+      state: review.state,
+      submittedAt: review.submitted_at ?? "",
+    })),
+    commits: commits.map(mapDriftCommit),
+    files: files.map((file) => ({
+      filename: file.filename,
+      status: file.status,
+      additions: file.additions,
+      deletions: file.deletions,
+      changes: file.changes,
+      blobUrl: file.blob_url,
+      rawUrl: file.raw_url,
+      patch: file.patch,
+    })),
   };
 }
 

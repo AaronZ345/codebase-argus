@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   parseGitCherry,
   parseMergeTreeNameOnly,
+  parseRebaseSimulationResult,
   validateBranchName,
   validateRepoRef,
 } from "./local-analyzer";
@@ -84,5 +85,25 @@ describe("local analyzer parsers", () => {
     expect(() => validateBranchName("feature/rebase-risk")).not.toThrow();
     expect(() => validateBranchName("main;rm -rf /")).toThrow();
     expect(() => validateBranchName("../main")).toThrow();
+  });
+
+  test("parses rebase simulation conflicts from status and stderr", () => {
+    expect(
+      parseRebaseSimulationResult({
+        exitCode: 1,
+        stdout: "Auto-merging src/core.ts\nCONFLICT (content): Merge conflict in src/core.ts\n",
+        stderr: "error: could not apply 1234567... change core\n",
+        status: "UU src/core.ts\nM  package.json\nAA src/new.ts\n",
+      }),
+    ).toEqual({
+      clean: false,
+      conflictFiles: ["src/core.ts", "src/new.ts"],
+      statusLines: ["UU src/core.ts", "M  package.json", "AA src/new.ts"],
+      logLines: [
+        "Auto-merging src/core.ts",
+        "CONFLICT (content): Merge conflict in src/core.ts",
+        "error: could not apply 1234567... change core",
+      ],
+    });
   });
 });
