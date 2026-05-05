@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fork Drift Sentinel
 
-## Getting Started
+Fork Drift Sentinel is a read-only GitHub API dashboard for people who maintain
+long-lived forks and upstream pull requests.
 
-First, run the development server:
+It answers the maintenance questions that generic PR dashboards usually leave
+scattered across GitHub pages:
+
+- How far is my fork default branch ahead of and behind upstream?
+- Which open upstream pull requests come from my PR head fork?
+- Are those PRs mergeable, conflicting, or waiting on checks?
+- Which fork-ahead commits look like they may already be covered upstream?
+
+The first version is deliberately narrow. It does not push, rebase, merge, write
+comments, or request write scopes.
+
+## Features
+
+- Compare an upstream repository with a fork using GitHub's compare API.
+- Filter upstream open pull requests to those whose head repository is the PR
+  head fork. This can differ from the fork used for default-branch drift.
+- Fetch pull request mergeability and check-run summaries.
+- Classify fork-ahead commits with lightweight cleanup heuristics.
+- Keep the optional GitHub token only in browser memory.
+
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The default repository pair is:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```text
+upstream: chenhg5/cc-connect
+fork:     AaronZ345/cc-connect
+PR head:  Cigarrr/cc-connect
+```
 
-## Learn More
+Public repositories work without a token, but unauthenticated GitHub API calls
+are rate limited. A fine-grained personal access token with read-only public
+repository access is enough for smoother testing.
 
-To learn more about Next.js, take a look at the following resources:
+## GitHub API Integration Notes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Fork Drift Sentinel uses the GitHub REST API endpoints for repositories,
+comparison, commits, pull requests, and check runs. This makes it a concrete
+GitHub API integration suitable for further development as a GitHub Developer
+Program project.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Current scope:
 
-## Deploy on Vercel
+- Read-only browser application.
+- No database.
+- No token persistence.
+- No GitHub App installation flow yet.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Planned next steps:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Add GitHub OAuth or GitHub App auth.
+- Add a shareable drift report route.
+- Add local CLI support for precise `git merge-tree` conflict checks.
+- Add patch-id style equivalence checks for stronger cleanup detection.
