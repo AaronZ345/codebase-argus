@@ -199,6 +199,15 @@ button:disabled {
   padding: 14px 16px;
 }
 
+.inline-error {
+  border-bottom: 1px solid rgba(180, 35, 24, 0.2);
+  background: rgba(180, 35, 24, 0.07);
+  color: var(--red);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  padding: 12px 18px;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -459,6 +468,108 @@ tr:last-child td {
   line-height: 1.55;
 }
 
+.risk-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 0;
+}
+
+.risk-summary,
+.risk-block {
+  border-bottom: 1px solid var(--line);
+  padding: 18px;
+}
+
+.risk-summary {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  background: #fbfcfd;
+}
+
+.risk-summary strong {
+  display: block;
+  font-size: 1.55rem;
+  line-height: 1.15;
+}
+
+.risk-summary p,
+.small-muted {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.risk-block {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.risk-block h3 {
+  font-size: 0.86rem;
+  line-height: 1.2;
+}
+
+.risk-block.wide {
+  grid-column: 1 / -1;
+}
+
+.compact-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+}
+
+.compact-list li {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  align-items: flex-start;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.compact-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+pre {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #101824;
+  color: #e8edf5;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
+.runbook {
+  display: grid;
+  gap: 10px;
+  padding-left: 20px;
+}
+
+.runbook li {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+  padding-left: 4px;
+}
+
+.runbook code {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .empty-state {
   display: grid;
   gap: 10px;
@@ -510,8 +621,13 @@ tr:last-child td {
 
   .summary-grid,
   .branch-strip,
-  .candidate-row {
+  .candidate-row,
+  .risk-grid {
     grid-template-columns: 1fr;
+  }
+
+  .risk-block.wide {
+    grid-column: auto;
   }
 
   .branch-strip span:last-child {

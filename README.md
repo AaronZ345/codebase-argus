@@ -21,6 +21,9 @@ comments, or request write scopes.
   head fork. This can differ from the fork used for default-branch drift.
 - Fetch pull request mergeability and check-run summaries.
 - Classify fork-ahead commits with lightweight cleanup heuristics.
+- Run a local git-backed rebase risk analysis in `.cache/repos`.
+- Generate an agent-safe command runbook for fetch, backup, rebase, test, and
+  force-with-lease push.
 - Keep the optional GitHub token only in browser memory.
 
 ## Local Development
@@ -53,14 +56,17 @@ Program project.
 
 Current scope:
 
-- Read-only browser application.
+- Read-only browser application plus local git analysis.
 - No database.
 - No token persistence.
 - No GitHub App installation flow yet.
+- No automatic push, rebase, merge, branch deletion, or PR closure.
 
 Planned next steps:
 
 - Add GitHub OAuth or GitHub App auth.
 - Add a shareable drift report route.
-- Add local CLI support for precise `git merge-tree` conflict checks.
-- Add patch-id style equivalence checks for stronger cleanup detection.
+- Add exact temporary-worktree rebase simulation for cases where merge-tree is
+  too coarse.
+- Add AI-assisted explanation for conflicted hunks, gated behind explicit user
+  action.
