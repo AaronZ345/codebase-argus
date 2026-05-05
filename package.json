@@ -2,8 +2,12 @@
   "name": "fork-drift-sentinel",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "fork-drift-sentinel": "./bin/fork-drift-sentinel"
+  },
   "scripts": {
     "dev": "next dev",
+    "fds": "tsx src/cli.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -20,6 +24,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.1.5"
   }

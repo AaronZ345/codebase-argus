@@ -163,6 +163,69 @@ Public repositories work without a GitHub token, but unauthenticated GitHub API
 calls are rate limited. A fine-grained read-only token is enough for smoother
 testing.
 
+## CLI
+
+The app also ships a local CLI for PR review. It is the best entry point for
+agents and scripts because it does not need a browser session.
+
+```bash
+npm run fds -- review owner/repo#123
+```
+
+Use a GitHub token for private repositories or higher rate limits:
+
+```bash
+GITHUB_TOKEN=... npm run fds -- review owner/repo#123
+```
+
+Use a policy file:
+
+```bash
+npm run fds -- review owner/repo#123 --policy .fork-drift-sentinel.yml
+```
+
+Run an AI provider:
+
+```bash
+npm run fds -- review owner/repo#123 --provider openai-api --model gpt-4.1-mini
+```
+
+Run a multi-agent tribunal:
+
+```bash
+npm run fds -- review owner/repo#123 --tribunal openai-api,claude-cli,codex-cli
+```
+
+Output defaults to markdown. Use `--format json` when another tool should parse
+the result.
+
+You can also link the package locally:
+
+```bash
+npm link
+fork-drift-sentinel review owner/repo#123
+```
+
+## Codex Skill
+
+The repository includes a skill package at:
+
+```text
+skills/fork-drift-sentinel/
+```
+
+Install it into a Codex skill directory when you want agents to invoke the
+review workflow directly:
+
+```bash
+mkdir -p ~/.codex/skills
+cp -R skills/fork-drift-sentinel ~/.codex/skills/
+```
+
+The skill tells the agent to use the CLI first, keep tokens out of logs, and
+avoid automatic approve, merge, push, or GitHub comments unless explicitly
+requested.
+
 ## AI Provider Setup
 
 Set only the providers you want to use:
