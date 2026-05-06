@@ -1,6 +1,6 @@
 ---
 name: fork-drift-sentinel
-description: Use when reviewing GitHub pull requests, reviewing CI failures, running evidence-first AI review with OpenAI/Claude/Gemini/Codex providers, preparing downstream merge/rebase work, or maintaining long-lived forks against an upstream repository.
+description: Use when reviewing GitHub pull requests, reviewing CI failures, fetching GitHub Actions logs, configuring GitHub App webhook review, handling /fds PR comment commands, planning autofix branches, running evidence-first AI review with OpenAI/Claude/Gemini/Codex providers, preparing downstream merge/rebase work, or maintaining long-lived forks against an upstream repository.
 metadata:
   origin: local
   owner: aaron
@@ -77,8 +77,68 @@ npm run fds -- ci-log logs/failure.txt --provider codex-cli
 npm run fds -- ci-log logs/failure.txt --tribunal codex-cli,claude-cli,gemini-cli
 ```
 
+When the user points at a GitHub PR with failing Actions checks, fetch the job
+logs directly:
+
+```bash
+GITHUB_TOKEN=<read-only-token> npm run fds -- ci-github owner/repo#123
+GITHUB_TOKEN=<read-only-token> npm run fds -- ci-github owner/repo#123 --provider codex-cli
+```
+
 Focus on the first failing command, the most likely root cause, and the smallest
 fix that can be verified locally.
+
+## Autofix Plan
+
+Use `autofix-plan` when the user asks for suggested fixes, safe automatic repair,
+or a branch plan for narrow mechanical failures:
+
+```bash
+npm run fds -- autofix-plan owner/repo#123
+```
+
+The plan covers gated lanes such as npm lockfile refreshes, snapshot updates, and
+formatter/linter fixes. Treat it as a command plan; do not execute, push, or open
+a PR unless the user explicitly asks.
+
+## GitHub App Webhook Review
+
+For automatic PR review, the deployed Next.js server exposes:
+
+```text
+POST /api/github/webhook
+GET /api/github/app-manifest
+```
+
+Required environment:
+
+```bash
+GITHUB_WEBHOOK_SECRET=<secret>
+GITHUB_APP_ID=<app-id>
+GITHUB_APP_PRIVATE_KEY=<pem-or-escaped-pem>
+```
+
+Use `GITHUB_APP_PRIVATE_KEY_BASE64` if storing multiline PEM is awkward. The
+webhook verifies `X-Hub-Signature-256`, reviews `opened`, `reopened`,
+`ready_for_review`, and `synchronize`, ignores draft PRs, posts `COMMENT` reviews
+only, and can add inline comments when `FDS_WEBHOOK_INLINE_COMMENTS=true`.
+
+Supported PR comment commands:
+
+```text
+/fds help
+/fds review
+/fds ci
+/fds autofix
+/fds pause
+/fds resume
+```
+
+`/fds pause` applies `fds:paused`; automatic review skips PRs with that label.
+`/fds resume` removes it.
+
+Do not approve, request changes, merge, push, or post comments outside this
+configured webhook path unless the user explicitly asks.
 
 ## What To Look For
 
@@ -90,6 +150,8 @@ Prioritize findings with concrete evidence:
 - auth, token, webhook, payment, signature, or route-handling changes;
 - dependency and lockfile changes;
 - large PRs that exceed policy gates;
+- stacked PRs targeting non-default base branches;
+- merge queue states such as blocked, behind, dirty, or unstable;
 - agreement between multiple providers.
 
 Low-confidence model-only claims need manual verification before reporting them as facts.

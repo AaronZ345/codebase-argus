@@ -147,6 +147,30 @@ describe("PR review helpers", () => {
     expect(result.findings[0].evidence.length).toBeGreaterThan(0);
   });
 
+  test("flags stacked PR and merge queue state signals", () => {
+    const stackedReport: PullRequestReviewReport = {
+      ...report,
+      pullRequest: {
+        ...report.pullRequest,
+        baseRef: "feature/base-pr",
+        mergeableState: "blocked",
+      },
+      repository: {
+        ...report.repository,
+        defaultBranch: "main",
+      },
+    };
+
+    const result = buildRuleBasedReview(stackedReport, DEFAULT_REVIEW_POLICY);
+
+    expect(result.findings.map((finding) => finding.title)).toContain(
+      "Stacked pull request needs dependency review",
+    );
+    expect(result.findings.map((finding) => finding.title)).toContain(
+      "Merge queue state needs attention",
+    );
+  });
+
   test("builds a compact provider prompt with patch evidence", () => {
     const prompt = buildReviewPrompt(report, DEFAULT_REVIEW_POLICY);
 

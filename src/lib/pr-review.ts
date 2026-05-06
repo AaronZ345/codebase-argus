@@ -114,6 +114,44 @@ export function buildRuleBasedReview(
   const totalDelta =
     report.pullRequest.additions + report.pullRequest.deletions;
 
+  if (report.pullRequest.baseRef !== report.repository.defaultBranch) {
+    findings.push({
+      severity: "medium",
+      category: "stack",
+      title: "Stacked pull request needs dependency review",
+      detail: `The PR targets ${report.pullRequest.baseRef} instead of ${report.repository.defaultBranch}, so it is likely part of a stacked branch flow.`,
+      recommendation:
+        "Review the base branch first, then verify this PR after restacking or after the base PR merges.",
+      confidence: "high",
+      evidence: [
+        {
+          kind: "policy",
+          label: "non-default base",
+          detail: `${report.pullRequest.baseRef} != ${report.repository.defaultBranch}`,
+        },
+      ],
+    });
+  }
+
+  if (isMergeQueueAttentionState(report.pullRequest.mergeableState)) {
+    findings.push({
+      severity: report.pullRequest.mergeableState === "dirty" ? "high" : "medium",
+      category: "merge-queue",
+      title: "Merge queue state needs attention",
+      detail: `GitHub reports mergeable_state=${report.pullRequest.mergeableState}.`,
+      recommendation:
+        "Refresh the branch, resolve queue blockers, and rerun required checks before adding it to the merge queue.",
+      confidence: "medium",
+      evidence: [
+        {
+          kind: "check",
+          label: "mergeable state",
+          detail: report.pullRequest.mergeableState,
+        },
+      ],
+    });
+  }
+
   if (report.checks.state === "failing") {
     findings.push({
       severity: "high",
@@ -465,6 +503,10 @@ function isSecuritySensitive(filename: string, patch?: string): boolean {
     "pull_request_target",
     "route.ts",
   ].some((needle) => haystack.includes(needle));
+}
+
+function isMergeQueueAttentionState(state: string): boolean {
+  return ["blocked", "behind", "dirty", "unstable"].includes(state);
 }
 
 function firstInterestingPatchLine(patch?: string): string | null {

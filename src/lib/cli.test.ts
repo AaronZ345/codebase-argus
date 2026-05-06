@@ -379,6 +379,94 @@ describe("CLI helpers", () => {
     expect(stdout).toHaveBeenCalledWith("## CI Failure Review\n\nci markdown");
   });
 
+  test("fetches GitHub Actions logs for a pull request before CI review", async () => {
+    const stdout = vi.fn();
+    const failingReport: PullRequestReviewReport = {
+      ...report,
+      checks: {
+        state: "failing",
+        total: 1,
+        failing: 1,
+        pending: 0,
+        runs: [
+          {
+            name: "CI",
+            status: "completed",
+            conclusion: "failure",
+            htmlUrl: "https://github.com/owner/repo/actions/runs/123/jobs/456",
+            detailsUrl: "https://github.com/owner/repo/actions/runs/123/job/456",
+          },
+        ],
+      },
+    };
+    const runAgentReview = vi.fn(async () => ({
+      provider: "codex-cli" as const,
+      model: "codex",
+      summary: "The unit test fails because config is missing.",
+      risk: "high" as const,
+      findings: [],
+      markdown: "ci markdown",
+    }));
+    const fetchFailedGitHubActionsLogs = vi.fn(async () => [
+      { label: "test", log: "FAIL src/app.test.ts\nMissing config" },
+    ]);
+
+    const code = await runCli(
+      ["ci-github", "owner/repo#12", "--provider", "codex-cli"],
+      {
+        env: { GITHUB_TOKEN: "gh-token" },
+        stdout,
+        stderr: vi.fn(),
+        fetchPullRequestReviewReport: vi.fn(async () => failingReport),
+        fetchFailedGitHubActionsLogs,
+        runAgentReview,
+      },
+    );
+
+    expect(code).toBe(0);
+    expect(fetchFailedGitHubActionsLogs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "owner",
+        repo: "repo",
+        token: "gh-token",
+        runs: failingReport.checks.runs,
+      }),
+    );
+    expect(runAgentReview.mock.calls[0][0].prompt.user).toContain(
+      "Missing config",
+    );
+    expect(stdout).toHaveBeenCalledWith("## CI Failure Review\n\nci markdown");
+  });
+
+  test("prints an autofix plan for a pull request", async () => {
+    const stdout = vi.fn();
+    const code = await runCli(["autofix-plan", "owner/repo#12"], {
+      env: {},
+      stdout,
+      stderr: vi.fn(),
+      fetchPullRequestReviewReport: vi.fn(async () => ({
+        ...report,
+        files: [
+          ...report.files,
+          {
+            filename: "package-lock.json",
+            status: "modified",
+            additions: 10,
+            deletions: 2,
+            changes: 12,
+            blobUrl: "https://github.com/owner/repo/blob/abc/package-lock.json",
+            rawUrl: "https://github.com/owner/repo/raw/abc/package-lock.json",
+            patch: "@@ lockfile @@",
+          },
+        ],
+      })),
+    });
+
+    expect(code).toBe(0);
+    expect(stdout.mock.calls.join("\n")).toContain("## Autofix Plan");
+    expect(stdout.mock.calls.join("\n")).toContain("fds/autofix-pr-12");
+  });
+
   test("runs an injected downstream sync executor only when execute is set", async () => {
     const stdout = vi.fn();
     const runSync = vi.fn(async () => ({

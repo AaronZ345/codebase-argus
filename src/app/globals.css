@@ -552,6 +552,82 @@ tr:last-child td {
   outline: none;
 }
 
+.compact-field input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfcfd;
+  color: var(--foreground);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.86rem;
+  padding: 0 11px;
+  outline: none;
+}
+
+.app-setup-panel {
+  margin-bottom: 18px;
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
+}
+
+.setup-controls {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  border-right: 1px solid var(--line);
+  background: #fbfcfd;
+  padding: 18px;
+}
+
+.command-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.setup-output {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.setup-output div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.setup-output span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.setup-output code {
+  overflow-wrap: anywhere;
+}
+
+.manifest-box {
+  width: 100%;
+  min-height: 260px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #101824;
+  color: #e8edf5;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  outline: none;
+  padding: 12px;
+}
+
 .policy-box {
   width: 100%;
   min-height: 150px;
@@ -1093,18 +1169,20 @@ pre {
   .branch-strip,
   .candidate-row,
   .pr-review-grid,
-  .pr-facts,
-  .risk-grid,
-  .actions-grid,
-  .agent-grid,
+	  .pr-facts,
+	  .risk-grid,
+	  .actions-grid,
+	  .setup-grid,
+	  .agent-grid,
   .range-summary,
   .downstream-review-controls {
     grid-template-columns: 1fr;
   }
 
-  .actions-controls,
-  .pr-review-controls,
-  .agent-block:nth-child(odd) {
+	  .actions-controls,
+	  .pr-review-controls,
+	  .setup-controls,
+	  .agent-block:nth-child(odd) {
     border-right: 0;
   }
 

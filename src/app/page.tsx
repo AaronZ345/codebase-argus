@@ -63,8 +63,13 @@ export default function Home() {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedTaskPackage, setCopiedTaskPackage] = useState(false);
   const [copiedWorkflow, setCopiedWorkflow] = useState(false);
+  const [copiedManifest, setCopiedManifest] = useState(false);
   const [actionSchedule, setActionSchedule] = useState("17 1 * * *");
   const [actionIssueNumber, setActionIssueNumber] = useState("");
+  const [appName, setAppName] = useState("Fork Drift Sentinel");
+  const [appUrl, setAppUrl] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.origin,
+  );
   const [prRef, setPrRef] = useState("");
   const [prReport, setPrReport] = useState<PullRequestReviewReport | null>(null);
   const [prReview, setPrReview] = useState<ReviewResult | null>(null);
@@ -610,40 +615,55 @@ export default function Home() {
         </article>
       </section>
 
-      <section className="capability-grid" aria-label="Practical gaps">
+      <section className="capability-grid" aria-label="Automation lanes">
         <article>
           <span>Queue</span>
-          <h2>Merge queue awareness</h2>
+          <h2>Merge queue signals</h2>
           <p>
-            Next useful step: detect stale heads, required queues, merge groups,
-            and whether a branch must be refreshed before entering the queue.
+            Review output flags blocked, behind, dirty, and unstable queue states
+            before a maintainer spends review time.
           </p>
         </article>
         <article>
           <span>Stack</span>
-          <h2>Dependent PR sync</h2>
+          <h2>Stacked PR signals</h2>
           <p>
-            Stacked branches need restack order, downstream dependency checks,
-            and warnings when one rebase changes later PRs.
+            PRs targeting non-default base branches get dependency review notes
+            so stacked work is reviewed in the right order.
           </p>
         </article>
         <article>
           <span>Checks</span>
           <h2>Direct CI log ingest</h2>
           <p>
-            `ci-log` already reviews local logs. The next step is fetching
-            failing GitHub job logs and feeding them to the same tribunal.
+            `ci-github` fetches failing GitHub Actions job logs and feeds them
+            into the same rule-based, API, CLI, or tribunal reviewers.
           </p>
         </article>
         <article>
           <span>Fix</span>
-          <h2>Confirmed auto-fix lanes</h2>
+          <h2>Gated autofix plans</h2>
           <p>
-            Narrow fixes such as formatting, lockfile refresh, snapshots, and
-            conflict-marker cleanup can be agent-run after tests pass.
+            `autofix-plan` prepares lockfile, snapshot, and formatter lanes with
+            explicit verification commands.
           </p>
         </article>
       </section>
+
+      <GitHubAppSetupPanel
+        appName={appName}
+        onAppNameChange={setAppName}
+        appUrl={appUrl}
+        onAppUrlChange={setAppUrl}
+        copiedManifest={copiedManifest}
+        onCopyManifest={async () => {
+          await navigator.clipboard.writeText(
+            JSON.stringify(buildClientGitHubAppManifest(appName, appUrl), null, 2),
+          );
+          setCopiedManifest(true);
+          window.setTimeout(() => setCopiedManifest(false), 1400);
+        }}
+      />
 
       {error ? <div className="error-panel">{error}</div> : null}
 
@@ -784,6 +804,108 @@ export default function Home() {
       )}
     </main>
   );
+}
+
+function GitHubAppSetupPanel({
+  appName,
+  onAppNameChange,
+  appUrl,
+  onAppUrlChange,
+  copiedManifest,
+  onCopyManifest,
+}: {
+  appName: string;
+  onAppNameChange: (value: string) => void;
+  appUrl: string;
+  onAppUrlChange: (value: string) => void;
+  copiedManifest: boolean;
+  onCopyManifest: () => Promise<void>;
+}) {
+  const manifest = buildClientGitHubAppManifest(appName, appUrl);
+
+  return (
+    <section className="panel app-setup-panel">
+      <div className="panel-header">
+        <div>
+          <h2>GitHub App setup</h2>
+          <p>
+            Generate the manifest, wire the webhook, and use PR comments for
+            review, CI, pause, resume, and autofix plans.
+          </p>
+        </div>
+        <button type="button" onClick={onCopyManifest}>
+          {copiedManifest ? "Copied" : "Copy manifest"}
+        </button>
+      </div>
+      <div className="setup-grid">
+        <div className="setup-controls">
+          <label className="compact-field">
+            App name
+            <input
+              value={appName}
+              onChange={(event) => onAppNameChange(event.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <label className="compact-field">
+            Public server URL
+            <input
+              value={appUrl}
+              onChange={(event) => onAppUrlChange(event.target.value)}
+              placeholder="https://your-host.example.com"
+              spellCheck={false}
+            />
+          </label>
+          <div className="command-list">
+            <code>/fds help</code>
+            <code>/fds review</code>
+            <code>/fds ci</code>
+            <code>/fds autofix</code>
+            <code>/fds pause</code>
+            <code>/fds resume</code>
+          </div>
+        </div>
+        <div className="setup-output">
+          <div>
+            <span>Webhook</span>
+            <code>{manifest.hook_attributes.url}</code>
+          </div>
+          <div>
+            <span>Manifest endpoint</span>
+            <code>{`${appUrl.replace(/\/+$/g, "")}/api/github/app-manifest`}</code>
+          </div>
+          <textarea
+            className="manifest-box"
+            value={JSON.stringify(manifest, null, 2)}
+            readOnly
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function buildClientGitHubAppManifest(name: string, url: string) {
+  const baseUrl = (url || "https://your-host.example.com").replace(/\/+$/g, "");
+  return {
+    name: name || "Fork Drift Sentinel",
+    url: baseUrl,
+    hook_attributes: {
+      url: `${baseUrl}/api/github/webhook`,
+    },
+    redirect_url: baseUrl,
+    callback_urls: [baseUrl],
+    public: false,
+    default_permissions: {
+      actions: "read",
+      checks: "read",
+      contents: "read",
+      issues: "write",
+      metadata: "read",
+      pull_requests: "write",
+    },
+    default_events: ["issue_comment", "pull_request"],
+  };
 }
 
 function PullRequestReviewPanel({
@@ -1768,7 +1890,7 @@ function LocalRiskPanel({
         <p className="muted">
           {hostedDemo
             ? "Hosted demo cannot run local git. Clone the repository and run the app locally to use merge/rebase risk analysis."
-            : "Run local analysis to clone/fetch repositories into `.cache/repos`. It does not need a GitHub token for public repos and will not modify your working copy. Use the CLI sync command when you explicitly want an integration branch. Without a GitHub report it assumes `main` as both branch names."}
+            : "Run local analysis to clone/fetch repositories into `.cache/repos`. Public repos need no GitHub token, and the analyzer leaves your working copy untouched. Use the CLI sync command when you explicitly want an integration branch. Without a GitHub report it assumes `main` as both branch names."}
         </p>
       )}
     </article>
@@ -1862,7 +1984,7 @@ function MethodPanel({ report }: { report: ForkReport }) {
         </li>
         <li>
           Downstream integration risk uses local git commands in `.cache/repos`;
-          it creates no commits and does not push.
+          it creates no commits and makes no push.
         </li>
         <li>
           The hosted app never writes to GitHub and never stores your token.

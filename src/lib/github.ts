@@ -122,6 +122,10 @@ type GitHubCheckRuns = {
       | "action_required"
       | null;
     html_url: string;
+    details_url?: string | null;
+    app?: {
+      slug?: string;
+    } | null;
   }>;
 };
 
@@ -153,7 +157,25 @@ export type PullRequestStatus = {
     total: number;
     failing: number;
     pending: number;
+    runs?: CheckRunSummary[];
   };
+};
+
+export type CheckRunSummary = {
+  name: string;
+  status: "queued" | "in_progress" | "completed";
+  conclusion:
+    | "success"
+    | "failure"
+    | "neutral"
+    | "cancelled"
+    | "skipped"
+    | "timed_out"
+    | "action_required"
+    | null;
+  htmlUrl: string;
+  detailsUrl?: string;
+  appSlug?: string;
 };
 
 export type PullRequestFileChange = {
@@ -479,6 +501,14 @@ async function fetchChecks(
       total: response.total_count,
       failing,
       pending,
+      runs: response.check_runs.map((run) => ({
+        name: run.name,
+        status: run.status,
+        conclusion: run.conclusion,
+        htmlUrl: run.html_url,
+        ...(run.details_url ? { detailsUrl: run.details_url } : undefined),
+        ...(run.app?.slug ? { appSlug: run.app.slug } : undefined),
+      })),
     };
   } catch {
     return { state: "unavailable", total: 0, failing: 0, pending: 0 };

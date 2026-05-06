@@ -3,6 +3,7 @@ import {
   runAgentReview as defaultRunAgentReview,
   runTribunalReview as defaultRunTribunalReview,
 } from "./agent-providers";
+import { buildAutofixPlan } from "./autofix";
 import {
   buildCiLogPrompt,
   buildRuleBasedCiReview,
@@ -17,6 +18,9 @@ import {
   fetchPullRequestReviewReport as defaultFetchPullRequestReviewReport,
 } from "./github";
 import type { PullRequestReviewReport } from "./github";
+import {
+  fetchFailedGitHubActionsLogs as defaultFetchFailedGitHubActionsLogs,
+} from "./github-app";
 import {
   analyzeLocalDrift as defaultAnalyzeLocalDrift,
 } from "./local-analyzer";
@@ -73,19 +77,36 @@ export type ParsedCliArgs =
       cwd?: string;
       timeoutMs?: number;
     }
-  | {
-      command: "ci-log";
-      logPath: string;
-      provider: Exclude<ReviewProvider, "tribunal">;
+	  | {
+	      command: "ci-log";
+	      logPath: string;
+	      provider: Exclude<ReviewProvider, "tribunal">;
       model?: string;
       tribunalProviders?: TribunalProvider[];
       format: "markdown" | "json";
-      cwd?: string;
-      timeoutMs?: number;
-    }
-  | ({
-      command: "sync";
-    } & SyncInput);
+	      cwd?: string;
+	      timeoutMs?: number;
+	    }
+	  | {
+	      command: "ci-github";
+	      pr: ReturnType<typeof parsePullRequestRef>;
+	      provider: Exclude<ReviewProvider, "tribunal">;
+	      model?: string;
+	      tribunalProviders?: TribunalProvider[];
+	      format: "markdown" | "json";
+	      githubToken?: string;
+	      cwd?: string;
+	      timeoutMs?: number;
+	    }
+	  | {
+	      command: "autofix-plan";
+	      pr: ReturnType<typeof parsePullRequestRef>;
+	      githubToken?: string;
+	      format: "markdown" | "json";
+	    }
+	  | ({
+	      command: "sync";
+	    } & SyncInput);
 
 type CliDeps = {
   env?: Record<string, string | undefined>;
@@ -93,6 +114,7 @@ type CliDeps = {
   stderr?: (value: string) => void;
   readFile?: (path: string, encoding: "utf8") => Promise<string> | string;
   fetchPullRequestReviewReport?: typeof defaultFetchPullRequestReviewReport;
+  fetchFailedGitHubActionsLogs?: typeof defaultFetchFailedGitHubActionsLogs;
   analyzeLocalDrift?: typeof defaultAnalyzeLocalDrift;
   runAgentReview?: typeof defaultRunAgentReview;
   runTribunalReview?: typeof defaultRunTribunalReview;
@@ -143,6 +165,20 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       throw new Error(`Missing CI log path.\n\n${usage()}`);
     }
     return parseCiLogArgs(firstRef, [secondRef, ...remaining].filter(Boolean));
+  }
+
+  if (command === "ci-github") {
+    if (!firstRef) {
+      throw new Error(`Missing pull request reference.\n\n${usage()}`);
+    }
+    return parseCiGitHubArgs(firstRef, [secondRef, ...remaining].filter(Boolean));
+  }
+
+  if (command === "autofix-plan") {
+    if (!firstRef) {
+      throw new Error(`Missing pull request reference.\n\n${usage()}`);
+    }
+    return parseAutofixPlanArgs(firstRef, [secondRef, ...remaining].filter(Boolean));
   }
 
   if (command === "sync") {
@@ -293,6 +329,83 @@ function parseCiLogArgs(
   return options;
 }
 
+function parseCiGitHubArgs(
+  prRef: string,
+  rest: string[],
+): ParsedCliArgs & { command: "ci-github" } {
+  const options: ParsedCliArgs & { command: "ci-github" } = {
+    command: "ci-github",
+    pr: parsePullRequestRef(prRef),
+    provider: "rule-based",
+    format: "markdown",
+  };
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const flag = rest[index];
+    const value = rest[index + 1];
+    if (!flag.startsWith("--")) {
+      throw new Error(`Unexpected argument "${flag}".\n\n${usage()}`);
+    }
+    if (!value) {
+      throw new Error(`Missing value for ${flag}.`);
+    }
+    index += 1;
+
+    if (flag === "--provider") {
+      options.provider = parseReviewProvider(value);
+    } else if (flag === "--model") {
+      options.model = value;
+    } else if (flag === "--tribunal") {
+      options.tribunalProviders = parseTribunalProviders(value);
+    } else if (flag === "--format") {
+      options.format = parseFormat(value);
+    } else if (flag === "--github-token") {
+      options.githubToken = value;
+    } else if (flag === "--cwd") {
+      options.cwd = value;
+    } else if (flag === "--timeout-ms") {
+      options.timeoutMs = parseTimeout(value);
+    } else {
+      throw new Error(`Unknown option "${flag}".\n\n${usage()}`);
+    }
+  }
+
+  return options;
+}
+
+function parseAutofixPlanArgs(
+  prRef: string,
+  rest: string[],
+): ParsedCliArgs & { command: "autofix-plan" } {
+  const options: ParsedCliArgs & { command: "autofix-plan" } = {
+    command: "autofix-plan",
+    pr: parsePullRequestRef(prRef),
+    format: "markdown",
+  };
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const flag = rest[index];
+    const value = rest[index + 1];
+    if (!flag.startsWith("--")) {
+      throw new Error(`Unexpected argument "${flag}".\n\n${usage()}`);
+    }
+    if (!value) {
+      throw new Error(`Missing value for ${flag}.`);
+    }
+    index += 1;
+
+    if (flag === "--format") {
+      options.format = parseFormat(value);
+    } else if (flag === "--github-token") {
+      options.githubToken = value;
+    } else {
+      throw new Error(`Unknown option "${flag}".\n\n${usage()}`);
+    }
+  }
+
+  return options;
+}
+
 function parseSyncArgs(
   upstream: string,
   fork: string,
@@ -393,6 +506,58 @@ export async function runCli(
       return 0;
     }
 
+    if (args.command === "ci-github") {
+      const token = args.githubToken ?? githubTokenFromEnv(deps.env ?? process.env);
+      const report = await (deps.fetchPullRequestReviewReport ??
+        defaultFetchPullRequestReviewReport)({
+        owner: args.pr.owner,
+        repo: args.pr.repo,
+        number: args.pr.number,
+        token,
+      });
+      const logs = await (deps.fetchFailedGitHubActionsLogs ??
+        defaultFetchFailedGitHubActionsLogs)({
+        owner: args.pr.owner,
+        repo: args.pr.repo,
+        runs: report.checks.runs ?? [],
+        token: token ?? "",
+      });
+      const label = `GitHub Actions ${args.pr.fullName}#${args.pr.number}`;
+      const log = logs.length
+        ? logs.map((item) => `## ${item.label}\n${item.log}`).join("\n\n")
+        : "No failing GitHub Actions job logs were available for this pull request.";
+      const review = await runCiLog(
+        {
+          command: "ci-log",
+          logPath: label,
+          provider: args.provider,
+          model: args.model,
+          tribunalProviders: args.tribunalProviders,
+          format: args.format,
+          cwd: args.cwd,
+          timeoutMs: args.timeoutMs,
+        },
+        log,
+        deps,
+      );
+      stdout(args.format === "json" ? JSON.stringify(review, null, 2) : review.markdown);
+      return 0;
+    }
+
+    if (args.command === "autofix-plan") {
+      const report = await (deps.fetchPullRequestReviewReport ??
+        defaultFetchPullRequestReviewReport)({
+        owner: args.pr.owner,
+        repo: args.pr.repo,
+        number: args.pr.number,
+        token: args.githubToken ?? githubTokenFromEnv(deps.env ?? process.env),
+      });
+      const review = buildRuleBasedReview(report, DEFAULT_REVIEW_POLICY);
+      const plan = buildAutofixPlan({ report, review });
+      stdout(args.format === "json" ? JSON.stringify(plan, null, 2) : plan.markdown);
+      return 0;
+    }
+
     if (args.command === "sync") {
       const result = await (deps.runSync ?? defaultRunSyncWorkflow)(args);
       stdout(result.markdown);
@@ -424,6 +589,8 @@ export function usage(): string {
     "  fork-drift-sentinel review <owner/repo#123|github-pr-url> [options]",
     "  fork-drift-sentinel drift <upstream-owner/repo> <fork-owner/repo> [options]",
     "  fork-drift-sentinel ci-log <path> [options]",
+    "  fork-drift-sentinel ci-github <owner/repo#123|github-pr-url> [options]",
+    "  fork-drift-sentinel autofix-plan <owner/repo#123|github-pr-url> [options]",
     "  fork-drift-sentinel sync <upstream-owner/repo> <fork-owner/repo> [options]",
     "",
     "Options:",
@@ -432,7 +599,7 @@ export function usage(): string {
     "  --model <model>             model override for a single provider",
     "  --format <markdown|json>    output format, default markdown",
     "  --policy <path>             PR review only: JSON or simple YAML policy file",
-    "  --github-token <token>      PR review only: GitHub token override",
+    "  --github-token <token>      PR review, ci-github, and autofix-plan only: GitHub token override",
     "  --upstream-branch <branch>  drift only: upstream branch, default main",
     "  --fork-branch <branch>      drift only: fork branch, default main",
     "  --mode <merge|rebase>       sync only: integration mode, default merge",
