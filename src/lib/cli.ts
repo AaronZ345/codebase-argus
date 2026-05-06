@@ -4,6 +4,11 @@ import {
   runTribunalReview as defaultRunTribunalReview,
 } from "./agent-providers";
 import {
+  buildCiLogPrompt,
+  buildRuleBasedCiReview,
+  formatCiReviewMarkdown,
+} from "./ci-review";
+import {
   buildDriftPrompt,
   buildRuleBasedDriftReview,
   formatDriftReviewMarkdown,
@@ -27,6 +32,10 @@ import {
   parseReviewPolicy,
 } from "./review-policy";
 import type { ReviewPolicy } from "./review-policy";
+import {
+  runSyncWorkflow as defaultRunSyncWorkflow,
+} from "./sync-workflow";
+import type { SyncInput, SyncMode } from "./sync-workflow";
 
 type AgentProvider = Exclude<ReviewProvider, "rule-based" | "tribunal">;
 
@@ -63,7 +72,20 @@ export type ParsedCliArgs =
       format: "markdown" | "json";
       cwd?: string;
       timeoutMs?: number;
-    };
+    }
+  | {
+      command: "ci-log";
+      logPath: string;
+      provider: Exclude<ReviewProvider, "tribunal">;
+      model?: string;
+      tribunalProviders?: TribunalProvider[];
+      format: "markdown" | "json";
+      cwd?: string;
+      timeoutMs?: number;
+    }
+  | ({
+      command: "sync";
+    } & SyncInput);
 
 type CliDeps = {
   env?: Record<string, string | undefined>;
@@ -74,6 +96,7 @@ type CliDeps = {
   analyzeLocalDrift?: typeof defaultAnalyzeLocalDrift;
   runAgentReview?: typeof defaultRunAgentReview;
   runTribunalReview?: typeof defaultRunTribunalReview;
+  runSync?: typeof defaultRunSyncWorkflow;
 };
 
 const REVIEW_PROVIDERS: Array<Exclude<ReviewProvider, "tribunal">> = [
@@ -113,6 +136,20 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       throw new Error(`Missing upstream or fork repository.\n\n${usage()}`);
     }
     return parseDriftArgs(firstRef, secondRef, remaining);
+  }
+
+  if (command === "ci-log") {
+    if (!firstRef) {
+      throw new Error(`Missing CI log path.\n\n${usage()}`);
+    }
+    return parseCiLogArgs(firstRef, [secondRef, ...remaining].filter(Boolean));
+  }
+
+  if (command === "sync") {
+    if (!firstRef || !secondRef) {
+      throw new Error(`Missing upstream or fork repository.\n\n${usage()}`);
+    }
+    return parseSyncArgs(firstRef, secondRef, remaining);
   }
 
   throw new Error(`Unknown command "${command}".\n\n${usage()}`);
@@ -214,6 +251,115 @@ function parseDriftArgs(
   return options;
 }
 
+function parseCiLogArgs(
+  logPath: string,
+  rest: string[],
+): ParsedCliArgs & { command: "ci-log" } {
+  const options: ParsedCliArgs & { command: "ci-log" } = {
+    command: "ci-log",
+    logPath,
+    provider: "rule-based",
+    format: "markdown",
+  };
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const flag = rest[index];
+    const value = rest[index + 1];
+    if (!flag.startsWith("--")) {
+      throw new Error(`Unexpected argument "${flag}".\n\n${usage()}`);
+    }
+    if (!value) {
+      throw new Error(`Missing value for ${flag}.`);
+    }
+    index += 1;
+
+    if (flag === "--provider") {
+      options.provider = parseReviewProvider(value);
+    } else if (flag === "--model") {
+      options.model = value;
+    } else if (flag === "--tribunal") {
+      options.tribunalProviders = parseTribunalProviders(value);
+    } else if (flag === "--format") {
+      options.format = parseFormat(value);
+    } else if (flag === "--cwd") {
+      options.cwd = value;
+    } else if (flag === "--timeout-ms") {
+      options.timeoutMs = parseTimeout(value);
+    } else {
+      throw new Error(`Unknown option "${flag}".\n\n${usage()}`);
+    }
+  }
+
+  return options;
+}
+
+function parseSyncArgs(
+  upstream: string,
+  fork: string,
+  rest: string[],
+): ParsedCliArgs & { command: "sync" } {
+  const options: ParsedCliArgs & { command: "sync" } = {
+    command: "sync",
+    upstream,
+    fork,
+    upstreamBranch: "main",
+    forkBranch: "main",
+    branch: "sync/upstream-main",
+    mode: "merge",
+    testCommands: [],
+    execute: false,
+    push: false,
+    createPr: false,
+  };
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const flag = rest[index];
+    if (flag === "--execute") {
+      options.execute = true;
+      continue;
+    }
+    if (flag === "--push") {
+      options.push = true;
+      continue;
+    }
+    if (flag === "--create-pr") {
+      options.createPr = true;
+      continue;
+    }
+
+    const value = rest[index + 1];
+    if (!flag.startsWith("--")) {
+      throw new Error(`Unexpected argument "${flag}".\n\n${usage()}`);
+    }
+    if (!value) {
+      throw new Error(`Missing value for ${flag}.`);
+    }
+    index += 1;
+
+    if (flag === "--mode") {
+      options.mode = parseSyncMode(value);
+    } else if (flag === "--upstream-branch") {
+      options.upstreamBranch = value;
+    } else if (flag === "--fork-branch") {
+      options.forkBranch = value;
+    } else if (flag === "--branch") {
+      options.branch = value;
+    } else if (flag === "--test") {
+      options.testCommands.push(value);
+    } else if (flag === "--workdir") {
+      options.workdir = value;
+    } else {
+      throw new Error(`Unknown option "${flag}".\n\n${usage()}`);
+    }
+  }
+
+  if ((options.push || options.createPr) && !options.execute) {
+    throw new Error("--push and --create-pr require --execute.");
+  }
+
+  return options;
+}
+
 export async function runCli(
   argv: string[],
   deps: CliDeps = {},
@@ -237,6 +383,19 @@ export async function runCli(
       });
       const review = await runDrift(args, report, deps);
       stdout(args.format === "json" ? JSON.stringify(review, null, 2) : review.markdown);
+      return 0;
+    }
+
+    if (args.command === "ci-log") {
+      const log = await (deps.readFile ?? nodeReadFile)(args.logPath, "utf8");
+      const review = await runCiLog(args, log, deps);
+      stdout(args.format === "json" ? JSON.stringify(review, null, 2) : review.markdown);
+      return 0;
+    }
+
+    if (args.command === "sync") {
+      const result = await (deps.runSync ?? defaultRunSyncWorkflow)(args);
+      stdout(result.markdown);
       return 0;
     }
 
@@ -264,6 +423,8 @@ export function usage(): string {
     "Usage:",
     "  fork-drift-sentinel review <owner/repo#123|github-pr-url> [options]",
     "  fork-drift-sentinel drift <upstream-owner/repo> <fork-owner/repo> [options]",
+    "  fork-drift-sentinel ci-log <path> [options]",
+    "  fork-drift-sentinel sync <upstream-owner/repo> <fork-owner/repo> [options]",
     "",
     "Options:",
     "  --provider <provider>       rule-based, openai-api, anthropic-api, gemini-api, codex-cli, claude-cli, gemini-cli",
@@ -274,9 +435,55 @@ export function usage(): string {
     "  --github-token <token>      PR review only: GitHub token override",
     "  --upstream-branch <branch>  drift only: upstream branch, default main",
     "  --fork-branch <branch>      drift only: fork branch, default main",
+    "  --mode <merge|rebase>       sync only: integration mode, default merge",
+    "  --branch <branch>           sync only: branch to create, default sync/upstream-main",
+    "  --test <command>            sync only: test command, repeatable",
+    "  --execute                   sync only: run the plan; omitted means dry-run",
+    "  --push                      sync only: push sync branch, requires --execute",
+    "  --create-pr                 sync only: open PR with gh, requires --execute",
     "  --cwd <path>                working directory for CLI providers",
     "  --timeout-ms <number>       agent timeout, default provider setting",
   ].join("\n");
+}
+
+async function runCiLog(
+  args: ParsedCliArgs & { command: "ci-log" },
+  log: string,
+  deps: CliDeps,
+): Promise<ReviewResult> {
+  if (args.tribunalProviders?.length) {
+    return withCiMarkdown(
+      await (deps.runTribunalReview ?? defaultRunTribunalReview)({
+        providers: args.tribunalProviders,
+        prompt: buildCiLogPrompt({ log, label: args.logPath }),
+        env: deps.env,
+        cwd: args.cwd,
+        timeoutMs: args.timeoutMs,
+      }),
+    );
+  }
+
+  if (args.provider === "rule-based") {
+    return buildRuleBasedCiReview({ log, label: args.logPath });
+  }
+
+  return withCiMarkdown(
+    await (deps.runAgentReview ?? defaultRunAgentReview)({
+      provider: args.provider,
+      model: args.model,
+      prompt: buildCiLogPrompt({ log, label: args.logPath }),
+      env: deps.env,
+      cwd: args.cwd,
+      timeoutMs: args.timeoutMs,
+    }),
+  );
+}
+
+function withCiMarkdown(review: ReviewResult): ReviewResult {
+  return {
+    ...review,
+    markdown: formatCiReviewMarkdown(review),
+  };
 }
 
 async function runDrift(
@@ -402,6 +609,13 @@ function parseTimeout(value: string): number {
     throw new Error(`Invalid timeout "${value}".`);
   }
   return timeout;
+}
+
+function parseSyncMode(value: string): SyncMode {
+  if (value === "merge" || value === "rebase") {
+    return value;
+  }
+  throw new Error(`Unsupported sync mode "${value}".`);
 }
 
 function githubTokenFromEnv(env: Record<string, string | undefined>): string | undefined {

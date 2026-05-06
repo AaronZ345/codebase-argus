@@ -1,6 +1,7 @@
 # Fork Drift Sentinel
 
-A read-only maintainer firewall for two related jobs that often get mixed up:
+An evidence-first maintainer firewall for two related jobs that often get mixed
+up:
 
 - reviewing normal pull requests as an upstream maintainer;
 - keeping a long-lived downstream fork from drifting into unreviewable debt.
@@ -22,10 +23,13 @@ Fork Drift Sentinel is built around evidence, not free-form model opinion.
 - Provider output is normalized into the same shape: summary, risk, findings,
   confidence, evidence, and copyable markdown.
 - API keys stay on the server. The browser never sends or stores provider keys.
-- The app stays read-only by default: it does not approve, merge, rebase, push,
-  delete branches, or write inline review comments from the UI.
+- The hosted UI stays non-writing. Local CLI workflows default to dry-run, then
+  execute only when flags such as `--execute`, `--push`, or `--create-pr` are
+  explicitly present.
 - Agent handoff material includes forbidden actions, acceptance gates, and the
   return-log format an agent must produce after it runs.
+- CI failure logs can be reviewed by the same rule-based, API, CLI, or tribunal
+  providers used for PR review.
 
 ### Upstream: PR Review
 
@@ -117,7 +121,9 @@ The local analyzer provides:
 
 The local analyzer does not modify your working copy, create commits, or push.
 Temporary worktrees live under `.cache/worktrees` and are removed after the
-simulation.
+simulation. The separate `sync` CLI command can perform the actual merge or
+rebase path, but only in an explicit downstream sync branch and only when
+`--execute` is present.
 
 #### AI Review For Downstream Merge/Rebase
 
@@ -132,6 +138,36 @@ This supports a multi-agent tribunal before risky merge/rebase work:
 - one agent can check patch-equivalent cleanup candidates;
 - one agent can assess whether merge or rebase is the safer path;
 - agreement between providers raises confidence.
+
+#### Executable Downstream Sync
+
+Use `sync` when the decision is already made and the agent should prepare a real
+integration branch:
+
+```bash
+npm run fds -- sync owner/upstream me/fork \
+  --mode merge \
+  --upstream-branch main \
+  --fork-branch feature/demo \
+  --branch sync/upstream-main \
+  --test "npm test"
+```
+
+Without `--execute`, this prints the plan only. With `--execute`, it clones the
+fork into `.cache/sync`, creates a backup branch, creates the sync branch, runs
+the selected `merge` or `rebase`, and runs each `--test` command. `--push` and
+`--create-pr` are separate gates:
+
+```bash
+npm run fds -- sync owner/upstream me/fork \
+  --mode rebase \
+  --fork-branch feature/demo \
+  --test "npm test" \
+  --execute --push --create-pr
+```
+
+The command pushes the sync branch, not the original target branch. PR creation
+uses `gh pr create`, so GitHub CLI auth decides whether that final step can run.
 
 ### Agent Handoff
 
@@ -211,6 +247,14 @@ Run a multi-agent tribunal:
 npm run fds -- review owner/repo#123 --tribunal openai-api,claude-cli,codex-cli
 ```
 
+Review a CI failure log with the same providers:
+
+```bash
+npm run fds -- ci-log logs/failure.txt
+npm run fds -- ci-log logs/failure.txt --provider codex-cli
+npm run fds -- ci-log logs/failure.txt --tribunal codex-cli,claude-cli,gemini-cli
+```
+
 ### Downstream Fork Integration Review
 
 Run deterministic local drift analysis and get a markdown review:
@@ -237,6 +281,13 @@ Run a multi-agent tribunal before choosing merge or rebase:
 npm run fds -- drift owner/upstream me/fork --fork-branch feature/demo --tribunal codex-cli,claude-cli,gemini-cli
 ```
 
+Print or execute a downstream sync plan:
+
+```bash
+npm run fds -- sync owner/upstream me/fork --mode merge --fork-branch feature/demo --test "npm test"
+npm run fds -- sync owner/upstream me/fork --mode rebase --fork-branch feature/demo --execute --push --create-pr
+```
+
 Output defaults to markdown. Use `--format json` when another tool should parse
 the result.
 
@@ -246,6 +297,7 @@ You can also link the package locally:
 npm link
 fork-drift-sentinel review owner/repo#123
 fork-drift-sentinel drift owner/upstream me/fork --provider codex-cli
+fork-drift-sentinel sync owner/upstream me/fork --mode merge --test "npm test" --execute
 ```
 
 ## Codex Skill
@@ -264,9 +316,10 @@ mkdir -p ~/.codex/skills
 cp -R skills/fork-drift-sentinel ~/.codex/skills/
 ```
 
-The skill tells the agent to use the CLI first, keep tokens out of logs, and
-avoid automatic approve, merge, rebase, push, or GitHub comments unless
-explicitly requested.
+The skill tells the agent to use the CLI first, keep tokens out of logs, run
+multi-agent review before risky downstream integration, and require explicit
+authorization before approve, merge, rebase, push, PR creation, or GitHub
+comments.
 
 ## AI Provider Setup
 
@@ -306,17 +359,43 @@ Fork Drift Sentinel is intentionally conservative:
 - no browser-side AI provider keys;
 - no automatic GitHub comments from the web UI;
 - no automatic approve/request-changes action;
-- no branch deletion, merge, rebase, push, or force-push from the app;
+- no branch deletion from the app;
+- local sync execution is dry-run by default;
+- `--push` and `--create-pr` require `--execute`;
+- sync pushes a named sync branch with `--force-with-lease`, not the original
+  target branch;
 - no privileged `pull_request_target` workflow execution for untrusted fork PRs.
 
-The generated task package may include commands for a human or agent to run, but
-the app itself stays read-only unless you manually use those commands elsewhere.
+The hosted demo remains read-only. Local CLI execution is available because local
+agents can inspect failures, resolve conflicts, run tests, push a sync branch, and
+open a PR when those actions are explicitly requested.
+
+## Practical Gaps To Add Next
+
+Compared with mature PR automation and merge-queue tools, the most useful next
+features are:
+
+- GitHub App installation and least-privilege repo permissions, instead of
+  relying on pasted tokens or local `gh` auth.
+- Merge queue awareness: detect required queues, blocked merge groups, stale
+  heads, and whether a sync branch needs to be updated before entering the queue.
+- Stack awareness for downstream or stacked PR workflows: understand dependent
+  branches, restack order, and whether a rebase changes later PRs.
+- Inline GitHub review comments and suggested patches, with explicit human
+  confirmation before posting.
+- CI failure ingestion from GitHub check logs, so `ci-log` can fetch failing
+  jobs directly instead of requiring a local log file.
+- Auto-fix mode for narrow classes of failures, such as lockfile refresh,
+  formatting, generated snapshots, or conflict markers, always followed by tests.
+- Dependency-specific risk signals such as changelog links, update type,
+  vulnerability context, and confidence for safe automerge.
 
 ## Current Gaps
 
 - No GitHub App installation flow yet.
 - No OAuth flow yet.
 - No inline GitHub review comments yet.
+- CI log review reads a local file; it does not fetch job logs from GitHub yet.
 - PR review Actions can comment a summary, but full hosted endpoint deployment is
   still up to the operator.
 - AI findings are drafts. Treat them as review assistance, not merge authority.

@@ -486,11 +486,11 @@ export default function Home() {
             <span className="brand-mark">FD</span>
             <span className="brand-name">Fork Drift Sentinel</span>
           </div>
-          <h1>Review upstream PRs and downstream fork drift with evidence.</h1>
+          <h1>Review PRs, CI failures, and fork syncs with evidence.</h1>
           <p>
-            One read-only tool for upstream maintainers reviewing incoming PRs
-            and downstream maintainers deciding how to merge or rebase upstream
-            into a long-lived fork.
+            The hosted UI analyzes safely. The local CLI can also run gated
+            agent workflows for upstream review and downstream merge or rebase
+            sync branches.
           </p>
         </div>
 
@@ -579,15 +579,16 @@ export default function Home() {
           <h2>Evidence-first guardrails</h2>
           <p>
             Findings carry files, checks, patch lines, policy gates, provider
-            consensus, or local git output. The app stays read-only by default.
+            consensus, or local git output. Execution defaults to dry-run and
+            needs explicit CLI flags.
           </p>
         </article>
         <article>
           <span>Upstream</span>
-          <h2>PR review and tribunal</h2>
+          <h2>PR and CI tribunal</h2>
           <p>
-            Review normal pull requests with deterministic checks, policy as
-            code, API models, local AI CLIs, or a multi-agent tribunal.
+            Review pull requests and CI logs with deterministic checks, policy
+            as code, API models, local AI CLIs, or a multi-agent tribunal.
           </p>
         </article>
         <article>
@@ -595,7 +596,51 @@ export default function Home() {
           <h2>Merge/rebase fork review</h2>
           <p>
             Compare a fork with upstream, project merge conflicts, simulate
-            rebase, and send the integration dossier to one or more agents.
+            rebase, ask multiple agents to choose a path, then run a gated sync
+            branch through the CLI.
+          </p>
+        </article>
+        <article>
+          <span>Execution</span>
+          <h2>Opt-in sync branch</h2>
+          <p>
+            `sync` prints a plan first. `--execute`, `--push`, and `--create-pr`
+            are separate gates, and pushes target the sync branch.
+          </p>
+        </article>
+      </section>
+
+      <section className="capability-grid" aria-label="Practical gaps">
+        <article>
+          <span>Queue</span>
+          <h2>Merge queue awareness</h2>
+          <p>
+            Next useful step: detect stale heads, required queues, merge groups,
+            and whether a branch must be refreshed before entering the queue.
+          </p>
+        </article>
+        <article>
+          <span>Stack</span>
+          <h2>Dependent PR sync</h2>
+          <p>
+            Stacked branches need restack order, downstream dependency checks,
+            and warnings when one rebase changes later PRs.
+          </p>
+        </article>
+        <article>
+          <span>Checks</span>
+          <h2>Direct CI log ingest</h2>
+          <p>
+            `ci-log` already reviews local logs. The next step is fetching
+            failing GitHub job logs and feeding them to the same tribunal.
+          </p>
+        </article>
+        <article>
+          <span>Fix</span>
+          <h2>Confirmed auto-fix lanes</h2>
+          <p>
+            Narrow fixes such as formatting, lockfile refresh, snapshots, and
+            conflict-marker cleanup can be agent-run after tests pass.
           </p>
         </article>
       </section>
@@ -1097,7 +1142,8 @@ function ActionsWorkflowPanel({
           <p>
             Generate a scheduled workflow for downstream fork drift reports,
             merge-tree evidence, range-diff, and optional tracking issue
-            comments.
+            comments. Use the CLI `sync` lane when the agent should create a
+            real integration branch.
           </p>
         </div>
         <button type="button" className="secondary-button" onClick={onCopyWorkflow}>
@@ -1129,6 +1175,7 @@ function ActionsWorkflowPanel({
             <li>Runs on schedule, manual dispatch, or upstream-updated dispatch.</li>
             <li>Uses local git on the runner; no write operation except issue comment.</li>
             <li>Reports behind/ahead counts, merge-tree conflicts, cherry evidence, and range-diff.</li>
+            <li>Actual merge or rebase execution belongs to the opt-in CLI sync command.</li>
           </ul>
         </div>
 
@@ -1173,9 +1220,8 @@ function AgentWorkflowPanel({
         <div>
           <h2>Downstream Agent Workflow</h2>
           <p>
-            Export a safe prompt for merge or rebase preparation, inspect
-            conflict evidence, and paste an agent execution log back for a
-            quick safety read.
+            Export a prompt for merge or rebase preparation, inspect conflict
+            evidence, or hand off the CLI sync path after agent review.
           </p>
         </div>
         <label className="mode-picker">
@@ -1509,7 +1555,8 @@ function LocalRiskPanel({
           <h2>Downstream Merge/Rebase Risk</h2>
           <p>
             Runs local git in a private cache, checks merge-upstream and
-            rebase-upstream evidence, then prepares agent-safe review material.
+            rebase-upstream evidence, then prepares agent-safe review material
+            before any real sync branch is created.
           </p>
         </div>
         <button
@@ -1721,7 +1768,7 @@ function LocalRiskPanel({
         <p className="muted">
           {hostedDemo
             ? "Hosted demo cannot run local git. Clone the repository and run the app locally to use merge/rebase risk analysis."
-            : "Run local analysis to clone/fetch repositories into `.cache/repos`. It does not need a GitHub token for public repos and will not modify your working copy. Without a GitHub report it assumes `main` as both branch names."}
+            : "Run local analysis to clone/fetch repositories into `.cache/repos`. It does not need a GitHub token for public repos and will not modify your working copy. Use the CLI sync command when you explicitly want an integration branch. Without a GitHub report it assumes `main` as both branch names."}
         </p>
       )}
     </article>
@@ -1796,7 +1843,7 @@ function MethodPanel({ report }: { report: ForkReport }) {
       <div className="panel-header">
         <div>
           <h2>Report Notes</h2>
-          <p>Generated {formatDate(report.generatedAt)} with read-only calls.</p>
+          <p>Generated {formatDate(report.generatedAt)} with non-writing calls.</p>
         </div>
       </div>
 
@@ -1818,7 +1865,8 @@ function MethodPanel({ report }: { report: ForkReport }) {
           it creates no commits and does not push.
         </li>
         <li>
-          The app never writes to GitHub and never stores your token.
+          The hosted app never writes to GitHub and never stores your token.
+          Local CLI sync execution is gated by explicit flags.
         </li>
       </ul>
     </article>

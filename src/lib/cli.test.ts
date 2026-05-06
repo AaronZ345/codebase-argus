@@ -175,6 +175,59 @@ describe("CLI helpers", () => {
     });
   });
 
+  test("parses a CI log review command with tribunal providers", () => {
+    expect(
+      parseCliArgs([
+        "ci-log",
+        "logs/failure.txt",
+        "--tribunal",
+        "codex-cli,claude-cli",
+        "--format",
+        "json",
+      ]),
+    ).toMatchObject({
+      command: "ci-log",
+      logPath: "logs/failure.txt",
+      tribunalProviders: [{ provider: "codex-cli" }, { provider: "claude-cli" }],
+      format: "json",
+    });
+  });
+
+  test("parses an explicit downstream sync execution command", () => {
+    expect(
+      parseCliArgs([
+        "sync",
+        "owner/upstream",
+        "me/fork",
+        "--mode",
+        "merge",
+        "--upstream-branch",
+        "main",
+        "--fork-branch",
+        "feature/demo",
+        "--branch",
+        "sync/upstream-main",
+        "--test",
+        "npm test",
+        "--execute",
+        "--push",
+        "--create-pr",
+      ]),
+    ).toMatchObject({
+      command: "sync",
+      upstream: "owner/upstream",
+      fork: "me/fork",
+      mode: "merge",
+      upstreamBranch: "main",
+      forkBranch: "feature/demo",
+      branch: "sync/upstream-main",
+      testCommands: ["npm test"],
+      execute: true,
+      push: true,
+      createPr: true,
+    });
+  });
+
   test("runs rule-based review and writes markdown by default", async () => {
     const stdout = vi.fn();
     const code = await runCli(["review", "owner/repo#12"], {
@@ -291,5 +344,78 @@ describe("CLI helpers", () => {
       "Rebase simulation",
     );
     expect(stdout.mock.calls.join("\n")).toContain("## Fork Drift Review");
+  });
+
+  test("runs CI log analysis through an injected AI provider", async () => {
+    const stdout = vi.fn();
+    const runAgentReview = vi.fn(async () => ({
+      provider: "codex-cli" as const,
+      model: "codex",
+      summary: "The unit test fails because config is missing.",
+      risk: "high" as const,
+      findings: [],
+      markdown: "ci markdown",
+    }));
+
+    const code = await runCli(
+      ["ci-log", "logs/failure.txt", "--provider", "codex-cli"],
+      {
+        env: {},
+        stdout,
+        stderr: vi.fn(),
+        readFile: vi.fn(async () => "FAIL src/app.test.ts\nMissing config"),
+        runAgentReview,
+      },
+    );
+
+    expect(code).toBe(0);
+    expect(runAgentReview).toHaveBeenCalledOnce();
+    expect(runAgentReview.mock.calls[0][0].prompt.system).toContain(
+      "CI failure",
+    );
+    expect(runAgentReview.mock.calls[0][0].prompt.user).toContain(
+      "Missing config",
+    );
+    expect(stdout).toHaveBeenCalledWith("## CI Failure Review\n\nci markdown");
+  });
+
+  test("runs an injected downstream sync executor only when execute is set", async () => {
+    const stdout = vi.fn();
+    const runSync = vi.fn(async () => ({
+      markdown: "sync markdown",
+      steps: [
+        { command: "git fetch upstream main", status: "planned" as const },
+      ],
+    }));
+
+    const code = await runCli(
+      [
+        "sync",
+        "owner/upstream",
+        "me/fork",
+        "--mode",
+        "rebase",
+        "--fork-branch",
+        "feature/demo",
+        "--execute",
+      ],
+      {
+        env: {},
+        stdout,
+        stderr: vi.fn(),
+        runSync,
+      },
+    );
+
+    expect(code).toBe(0);
+    expect(runSync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        execute: true,
+        mode: "rebase",
+        upstream: "owner/upstream",
+        fork: "me/fork",
+      }),
+    );
+    expect(stdout).toHaveBeenCalledWith("sync markdown");
   });
 });

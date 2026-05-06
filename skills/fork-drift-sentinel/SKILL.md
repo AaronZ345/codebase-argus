@@ -1,6 +1,6 @@
 ---
 name: fork-drift-sentinel
-description: Use when reviewing GitHub pull requests, running evidence-first AI review with OpenAI/Claude/Gemini/Codex providers, generating maintainer-safe PR summaries, or maintaining long-lived forks against an upstream repository.
+description: Use when reviewing GitHub pull requests, reviewing CI failures, running evidence-first AI review with OpenAI/Claude/Gemini/Codex providers, preparing downstream merge/rebase work, or maintaining long-lived forks against an upstream repository.
 metadata:
   origin: local
   owner: aaron
@@ -8,7 +8,8 @@ metadata:
 
 # Fork Drift Sentinel
 
-Use this skill as a maintainer firewall for GitHub PRs and fork drift work.
+Use this skill as a maintainer firewall for GitHub PRs, CI failures, and
+downstream fork integration work.
 
 ## Fast Path
 
@@ -65,6 +66,20 @@ npm run fds -- review owner/repo#123 --tribunal openai-api,claude-cli,codex-cli
 
 Treat output as review assistance. Do not approve, merge, push, or post comments automatically unless the user explicitly asks.
 
+## CI Failure Review
+
+When the user provides a failing job log or local log file, review it through the
+same provider system:
+
+```bash
+npm run fds -- ci-log logs/failure.txt
+npm run fds -- ci-log logs/failure.txt --provider codex-cli
+npm run fds -- ci-log logs/failure.txt --tribunal codex-cli,claude-cli,gemini-cli
+```
+
+Focus on the first failing command, the most likely root cause, and the smallest
+fix that can be verified locally.
+
 ## What To Look For
 
 Prioritize findings with concrete evidence:
@@ -95,6 +110,23 @@ npm run fds -- drift owner/upstream me/fork --fork-branch feature/demo --provide
 npm run fds -- drift owner/upstream me/fork --fork-branch feature/demo --tribunal codex-cli,claude-cli,gemini-cli
 ```
 
+When the user explicitly asks the agent to perform the downstream integration,
+use `sync`. It prints a dry-run plan unless `--execute` is present:
+
+```bash
+npm run fds -- sync owner/upstream me/fork --mode merge --fork-branch feature/demo --test "npm test"
+npm run fds -- sync owner/upstream me/fork --mode rebase --fork-branch feature/demo --test "npm test" --execute --push --create-pr
+```
+
+Execution rules:
+
+- run `drift` with a provider or tribunal first for risky branches;
+- prefer a sync branch such as `sync/upstream-main`;
+- push only with explicit `--push`;
+- open a PR only with explicit `--create-pr`;
+- never push directly over the user's original target branch;
+- report failed commands, conflicts, and test output without hiding them.
+
 The downstream prompt must consider both integration paths:
 
 - merge upstream into the fork, using `git merge-tree` conflict evidence;
@@ -109,4 +141,4 @@ Use the local dashboard when a human needs to inspect the same evidence visually
 npm run dev
 ```
 
-Open the Fork Drift, Downstream Merge/Rebase Risk, and Downstream Agent Workflow panels. The local analyzer works in `.cache/repos` and temporary worktrees, and must not push or force-push by itself.
+Open the Fork Drift, Downstream Merge/Rebase Risk, and Downstream Agent Workflow panels. The local analyzer works in `.cache/repos` and temporary worktrees, and must not push or force-push by itself. Actual sync execution belongs to the CLI `sync` command and only runs after explicit flags.
