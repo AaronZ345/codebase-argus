@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import { buildGitHubAppManifest } from "@/lib/github-app";
 
-export const runtime = "nodejs";
+export const dynamic = "force-static";
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
+export async function GET() {
   const baseUrl =
-    url.searchParams.get("url")?.trim() ||
     process.env.FDS_PUBLIC_URL?.trim() ||
-    `${url.protocol}//${url.host}`;
+    "https://aaronz345.github.io/fork-drift-sentinel";
   const name =
-    url.searchParams.get("name")?.trim() ||
     process.env.FDS_GITHUB_APP_NAME?.trim() ||
     "Fork Drift Sentinel";
 
