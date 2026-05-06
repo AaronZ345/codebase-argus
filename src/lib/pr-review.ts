@@ -333,9 +333,12 @@ export function parseProviderReviewJson(
   return result;
 }
 
-export function formatReviewMarkdown(review: ReviewResult): string {
+export function formatReviewMarkdown(
+  review: ReviewResult,
+  title = "PR Review",
+): string {
   return [
-    "## PR Review",
+    `## ${title}`,
     "",
     `Provider: ${review.provider} (${review.model})`,
     `Risk: ${review.risk}`,

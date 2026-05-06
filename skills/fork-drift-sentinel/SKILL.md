@@ -27,7 +27,7 @@ GITHUB_TOKEN=<read-only-token> npm run fds -- review owner/repo#123
 
 Do not print tokens. Do not write tokens to files.
 
-## PR Review
+## Upstream PR Review
 
 Default review is deterministic and rule-based:
 
@@ -79,12 +79,34 @@ Prioritize findings with concrete evidence:
 
 Low-confidence model-only claims need manual verification before reporting them as facts.
 
-## Fork Drift Work
+## Downstream Fork Drift And Integration Review
 
-For fork maintenance, use the web app local analyzer until the CLI grows drift subcommands:
+For long-lived fork maintenance, use the downstream CLI first:
+
+```bash
+npm run fds -- drift owner/upstream me/fork
+npm run fds -- drift owner/upstream me/fork --upstream-branch main --fork-branch feature/demo
+```
+
+For AI CLI review of merge/rebase risk:
+
+```bash
+npm run fds -- drift owner/upstream me/fork --fork-branch feature/demo --provider codex-cli
+npm run fds -- drift owner/upstream me/fork --fork-branch feature/demo --tribunal codex-cli,claude-cli,gemini-cli
+```
+
+The downstream prompt must consider both integration paths:
+
+- merge upstream into the fork, using `git merge-tree` conflict evidence;
+- rebase the fork on upstream, using temporary worktree rebase simulation;
+- patch-equivalent cleanup candidates from `git cherry -v`;
+- semantic patch movement from `git range-diff`;
+- backup, test, and force-with-lease gates before any push.
+
+Use the local dashboard when a human needs to inspect the same evidence visually:
 
 ```bash
 npm run dev
 ```
 
-Open the local dashboard and use the Fork Drift and Local Rebase Risk panels. The local analyzer works in `.cache/repos` and temporary worktrees, and must not push or force-push by itself.
+Open the Fork Drift, Downstream Merge/Rebase Risk, and Downstream Agent Workflow panels. The local analyzer works in `.cache/repos` and temporary worktrees, and must not push or force-push by itself.

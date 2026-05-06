@@ -301,7 +301,7 @@ export function buildCliInvocation(
       "--output-format",
       "text",
       "--prompt",
-      "Review the pull request context from stdin. Return JSON only.",
+      "Review the provided engineering context from stdin. Return JSON only.",
     ],
   };
 }

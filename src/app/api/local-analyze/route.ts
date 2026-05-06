@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Local rebase risk analysis is available only when running this app locally.",
+            "Local merge/rebase risk analysis is available only when running this app locally.",
         },
         { status: 501 },
       );

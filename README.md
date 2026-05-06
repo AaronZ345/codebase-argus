@@ -1,9 +1,9 @@
 # Fork Drift Sentinel
 
-A read-only maintainer firewall for two related jobs:
+A read-only maintainer firewall for two related jobs that often get mixed up:
 
 - reviewing normal pull requests as an upstream maintainer;
-- keeping a long-lived fork from drifting into unreviewable debt.
+- keeping a long-lived downstream fork from drifting into unreviewable debt.
 
 Live demo: <https://aaronz345.github.io/fork-drift-sentinel/>
 
@@ -13,9 +13,23 @@ deployment because they run server-side code.
 
 ## What It Does
 
-### PR Review
+### Overall Features
 
-Paste a GitHub PR URL or `owner/repo#123`.
+Fork Drift Sentinel is built around evidence, not free-form model opinion.
+
+- Findings cite checks, changed files, patch lines, policy gates, provider
+  consensus, or local git output.
+- Provider output is normalized into the same shape: summary, risk, findings,
+  confidence, evidence, and copyable markdown.
+- API keys stay on the server. The browser never sends or stores provider keys.
+- The app stays read-only by default: it does not approve, merge, rebase, push,
+  delete branches, or write inline review comments from the UI.
+- Agent handoff material includes forbidden actions, acceptance gates, and the
+  return-log format an agent must produce after it runs.
+
+### Upstream: PR Review
+
+For upstream maintainers, paste a GitHub PR URL or `owner/repo#123`.
 
 Fork Drift Sentinel fetches:
 
@@ -30,21 +44,7 @@ tests, workflow changes, dependency updates, security-sensitive paths, policy
 violations, and large diffs. Findings include confidence and concrete evidence,
 so the output is not just a model opinion.
 
-### Evidence Engine
-
-Each finding can carry evidence:
-
-- check-run state;
-- changed files;
-- patch lines;
-- policy gates;
-- provider consensus;
-- local git output for fork drift.
-
-The review markdown includes those evidence lines so maintainers can decide
-quickly whether a finding is worth attention.
-
-### Policy As Code
+#### Policy As Code
 
 The PR panel accepts a small `.fork-drift-sentinel.yml`-style policy. No extra
 dependency is required; the parser handles JSON or simple YAML-like input.
@@ -68,7 +68,7 @@ sensitivePathPatterns:
 Policy findings are treated as first-class review findings with high-confidence
 evidence.
 
-### AI Review
+#### AI Review
 
 The PR review context can be sent to:
 
@@ -79,12 +79,8 @@ The PR review context can be sent to:
 - `claude-cli`
 - `gemini-cli`
 
-API keys stay on the server. The browser never sends or stores provider keys.
 CLI providers run in non-interactive review mode and receive the PR context on
-stdin. The result is normalized into the same shape: summary, risk, findings,
-confidence, evidence, and copyable markdown.
-
-### Multi-Agent Tribunal
+stdin.
 
 Instead of trusting one reviewer, run several providers on the same PR. Fork
 Drift Sentinel groups matching findings by category, file, and title. If two or
@@ -92,7 +88,7 @@ more providers report the same issue, confidence is raised and the finding lists
 the providers that agreed. Provider failures are kept as visible findings, not
 hidden in logs.
 
-### Fork Drift
+### Downstream: Fork Drift And Integration Review
 
 For fork maintenance, enter an upstream repository, a fork repository, and
 optionally a separate PR head repository.
@@ -104,12 +100,15 @@ The dashboard shows:
 - mergeability and checks for those PRs;
 - fork-ahead commits that may already be covered upstream.
 
-### Local Rebase Risk
+When running locally, the app uses `git` inside `.cache/repos` to inspect how a
+downstream fork can integrate upstream changes. Both paths matter:
 
-When running locally, the app can use `git` inside `.cache/repos` to inspect
-drift more deeply:
+- merge upstream into the fork;
+- rebase the fork on top of upstream.
 
-- projected conflict files from `git merge-tree`;
+The local analyzer provides:
+
+- projected merge conflict files from `git merge-tree`;
 - an actual temporary worktree rebase simulation;
 - patch-equivalent commits from `git cherry`;
 - semantic patch movement from `git range-diff`;
@@ -120,6 +119,20 @@ The local analyzer does not modify your working copy, create commits, or push.
 Temporary worktrees live under `.cache/worktrees` and are removed after the
 simulation.
 
+#### AI Review For Downstream Merge/Rebase
+
+The downstream integration dossier can also be sent to API providers or local AI
+CLIs. The prompt includes merge-tree evidence, rebase simulation status,
+patch-equivalent commits, unique fork commits, range-diff excerpts, and gated
+runbook commands.
+
+This supports a multi-agent tribunal before risky merge/rebase work:
+
+- one agent can focus on conflict files;
+- one agent can check patch-equivalent cleanup candidates;
+- one agent can assess whether merge or rebase is the safer path;
+- agreement between providers raises confidence.
+
 ### Agent Handoff
 
 The Agent Workflow panel exports:
@@ -127,7 +140,7 @@ The Agent Workflow panel exports:
 - a durable task package with inputs, evidence, forbidden actions, command plan,
   acceptance gates, and required return-log format;
 - a shorter prompt for quick interactive runs;
-- a session-log checker that flags missing fetch, backup, rebase, test,
+- a session-log checker that flags missing fetch, backup, integration, test,
   conflict, or push signals after an agent finishes.
 
 ### GitHub Actions Mode
@@ -165,8 +178,10 @@ testing.
 
 ## CLI
 
-The app also ships a local CLI for PR review. It is the best entry point for
-agents and scripts because it does not need a browser session.
+The app also ships a local CLI. It is the best entry point for agents and
+scripts because it does not need a browser session.
+
+### Upstream PR Review
 
 ```bash
 npm run fds -- review owner/repo#123
@@ -196,6 +211,32 @@ Run a multi-agent tribunal:
 npm run fds -- review owner/repo#123 --tribunal openai-api,claude-cli,codex-cli
 ```
 
+### Downstream Fork Integration Review
+
+Run deterministic local drift analysis and get a markdown review:
+
+```bash
+npm run fds -- drift owner/upstream me/fork
+```
+
+Pick branches explicitly:
+
+```bash
+npm run fds -- drift owner/upstream me/fork --upstream-branch main --fork-branch feature/demo
+```
+
+Send the downstream merge/rebase dossier to a local AI CLI:
+
+```bash
+npm run fds -- drift owner/upstream me/fork --fork-branch feature/demo --provider codex-cli
+```
+
+Run a multi-agent tribunal before choosing merge or rebase:
+
+```bash
+npm run fds -- drift owner/upstream me/fork --fork-branch feature/demo --tribunal codex-cli,claude-cli,gemini-cli
+```
+
 Output defaults to markdown. Use `--format json` when another tool should parse
 the result.
 
@@ -204,6 +245,7 @@ You can also link the package locally:
 ```bash
 npm link
 fork-drift-sentinel review owner/repo#123
+fork-drift-sentinel drift owner/upstream me/fork --provider codex-cli
 ```
 
 ## Codex Skill
@@ -223,8 +265,8 @@ cp -R skills/fork-drift-sentinel ~/.codex/skills/
 ```
 
 The skill tells the agent to use the CLI first, keep tokens out of logs, and
-avoid automatic approve, merge, push, or GitHub comments unless explicitly
-requested.
+avoid automatic approve, merge, rebase, push, or GitHub comments unless
+explicitly requested.
 
 ## AI Provider Setup
 
@@ -246,7 +288,8 @@ FDS_GEMINI_API_MODEL=gemini-2.0-flash
 
 You can also enter a one-off model override in the UI.
 
-CLI review expects the corresponding command to be installed and authenticated:
+CLI AI review expects the corresponding command to be installed and
+authenticated:
 
 ```bash
 codex exec --help

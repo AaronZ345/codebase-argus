@@ -194,6 +194,40 @@ button:disabled {
   line-height: 1.5;
 }
 
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.capability-grid article {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 16px;
+}
+
+.capability-grid span {
+  color: var(--accent);
+  font-size: 0.74rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.capability-grid h2 {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.capability-grid p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
 .error-panel {
   border-color: rgba(180, 35, 24, 0.35);
   color: var(--red);
@@ -583,6 +617,12 @@ tr:last-child td {
   padding: 18px;
 }
 
+.embedded-review {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 14px;
+}
+
 .review-result .block-heading p {
   color: var(--muted);
   font-size: 0.86rem;
@@ -934,6 +974,17 @@ tr:last-child td {
   grid-column: 1 / -1;
 }
 
+.downstream-review-block {
+  gap: 16px;
+}
+
+.downstream-review-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.8fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
 .compact-list {
   display: grid;
   gap: 8px;
@@ -1038,6 +1089,7 @@ pre {
   }
 
   .summary-grid,
+  .capability-grid,
   .branch-strip,
   .candidate-row,
   .pr-review-grid,
@@ -1045,7 +1097,8 @@ pre {
   .risk-grid,
   .actions-grid,
   .agent-grid,
-  .range-summary {
+  .range-summary,
+  .downstream-review-controls {
     grid-template-columns: 1fr;
   }
 

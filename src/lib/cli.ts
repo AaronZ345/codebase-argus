@@ -4,9 +4,18 @@ import {
   runTribunalReview as defaultRunTribunalReview,
 } from "./agent-providers";
 import {
+  buildDriftPrompt,
+  buildRuleBasedDriftReview,
+  formatDriftReviewMarkdown,
+} from "./drift-review";
+import {
   fetchPullRequestReviewReport as defaultFetchPullRequestReviewReport,
 } from "./github";
 import type { PullRequestReviewReport } from "./github";
+import {
+  analyzeLocalDrift as defaultAnalyzeLocalDrift,
+} from "./local-analyzer";
+import type { LocalAnalysisReport } from "./local-analyzer";
 import {
   buildReviewPrompt,
   buildRuleBasedReview,
@@ -41,6 +50,19 @@ export type ParsedCliArgs =
       githubToken?: string;
       cwd?: string;
       timeoutMs?: number;
+    }
+  | {
+      command: "drift";
+      upstream: string;
+      fork: string;
+      upstreamBranch: string;
+      forkBranch: string;
+      provider: Exclude<ReviewProvider, "tribunal">;
+      model?: string;
+      tribunalProviders?: TribunalProvider[];
+      format: "markdown" | "json";
+      cwd?: string;
+      timeoutMs?: number;
     };
 
 type CliDeps = {
@@ -49,6 +71,7 @@ type CliDeps = {
   stderr?: (value: string) => void;
   readFile?: (path: string, encoding: "utf8") => Promise<string> | string;
   fetchPullRequestReviewReport?: typeof defaultFetchPullRequestReviewReport;
+  analyzeLocalDrift?: typeof defaultAnalyzeLocalDrift;
   runAgentReview?: typeof defaultRunAgentReview;
   runTribunalReview?: typeof defaultRunTribunalReview;
 };
@@ -73,17 +96,32 @@ const AGENT_PROVIDERS: AgentProvider[] = [
 ];
 
 export function parseCliArgs(argv: string[]): ParsedCliArgs {
-  const [command, prRef, ...rest] = argv;
+  const [command, firstRef, secondRef, ...remaining] = argv;
   if (!command || command === "help" || command === "--help" || command === "-h") {
     return { command: "help" };
   }
-  if (command !== "review") {
-    throw new Error(`Unknown command "${command}".\n\n${usage()}`);
-  }
-  if (!prRef) {
-    throw new Error(`Missing pull request reference.\n\n${usage()}`);
+
+  if (command === "review") {
+    if (!firstRef) {
+      throw new Error(`Missing pull request reference.\n\n${usage()}`);
+    }
+    return parseReviewArgs(firstRef, [secondRef, ...remaining].filter(Boolean));
   }
 
+  if (command === "drift") {
+    if (!firstRef || !secondRef) {
+      throw new Error(`Missing upstream or fork repository.\n\n${usage()}`);
+    }
+    return parseDriftArgs(firstRef, secondRef, remaining);
+  }
+
+  throw new Error(`Unknown command "${command}".\n\n${usage()}`);
+}
+
+function parseReviewArgs(
+  prRef: string,
+  rest: string[],
+): ParsedCliArgs & { command: "review" } {
   const options: ParsedCliArgs & { command: "review" } = {
     command: "review",
     pr: parsePullRequestRef(prRef),
@@ -126,6 +164,56 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   return options;
 }
 
+function parseDriftArgs(
+  upstream: string,
+  fork: string,
+  rest: string[],
+): ParsedCliArgs & { command: "drift" } {
+  const options: ParsedCliArgs & { command: "drift" } = {
+    command: "drift",
+    upstream,
+    fork,
+    upstreamBranch: "main",
+    forkBranch: "main",
+    provider: "rule-based",
+    format: "markdown",
+  };
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const flag = rest[index];
+    const value = rest[index + 1];
+    if (!flag.startsWith("--")) {
+      throw new Error(`Unexpected argument "${flag}".\n\n${usage()}`);
+    }
+    if (!value) {
+      throw new Error(`Missing value for ${flag}.`);
+    }
+    index += 1;
+
+    if (flag === "--provider") {
+      options.provider = parseReviewProvider(value);
+    } else if (flag === "--model") {
+      options.model = value;
+    } else if (flag === "--tribunal") {
+      options.tribunalProviders = parseTribunalProviders(value);
+    } else if (flag === "--format") {
+      options.format = parseFormat(value);
+    } else if (flag === "--upstream-branch") {
+      options.upstreamBranch = value;
+    } else if (flag === "--fork-branch") {
+      options.forkBranch = value;
+    } else if (flag === "--cwd") {
+      options.cwd = value;
+    } else if (flag === "--timeout-ms") {
+      options.timeoutMs = parseTimeout(value);
+    } else {
+      throw new Error(`Unknown option "${flag}".\n\n${usage()}`);
+    }
+  }
+
+  return options;
+}
+
 export async function runCli(
   argv: string[],
   deps: CliDeps = {},
@@ -137,6 +225,18 @@ export async function runCli(
     const args = parseCliArgs(argv);
     if (args.command === "help") {
       stdout(usage());
+      return 0;
+    }
+
+    if (args.command === "drift") {
+      const report = await (deps.analyzeLocalDrift ?? defaultAnalyzeLocalDrift)({
+        upstream: args.upstream,
+        fork: args.fork,
+        upstreamBranch: args.upstreamBranch,
+        forkBranch: args.forkBranch,
+      });
+      const review = await runDrift(args, report, deps);
+      stdout(args.format === "json" ? JSON.stringify(review, null, 2) : review.markdown);
       return 0;
     }
 
@@ -163,17 +263,60 @@ export function usage(): string {
     "",
     "Usage:",
     "  fork-drift-sentinel review <owner/repo#123|github-pr-url> [options]",
+    "  fork-drift-sentinel drift <upstream-owner/repo> <fork-owner/repo> [options]",
     "",
     "Options:",
     "  --provider <provider>       rule-based, openai-api, anthropic-api, gemini-api, codex-cli, claude-cli, gemini-cli",
     "  --tribunal <providers>      comma list, optional model with provider:model",
     "  --model <model>             model override for a single provider",
-    "  --policy <path>             JSON or simple YAML policy file",
     "  --format <markdown|json>    output format, default markdown",
-    "  --github-token <token>      GitHub token override; otherwise GITHUB_TOKEN or GH_TOKEN",
+    "  --policy <path>             PR review only: JSON or simple YAML policy file",
+    "  --github-token <token>      PR review only: GitHub token override",
+    "  --upstream-branch <branch>  drift only: upstream branch, default main",
+    "  --fork-branch <branch>      drift only: fork branch, default main",
     "  --cwd <path>                working directory for CLI providers",
     "  --timeout-ms <number>       agent timeout, default provider setting",
   ].join("\n");
+}
+
+async function runDrift(
+  args: ParsedCliArgs & { command: "drift" },
+  report: LocalAnalysisReport,
+  deps: CliDeps,
+): Promise<ReviewResult> {
+  if (args.tribunalProviders?.length) {
+    return withDriftMarkdown(
+      await (deps.runTribunalReview ?? defaultRunTribunalReview)({
+        providers: args.tribunalProviders,
+        prompt: buildDriftPrompt(report),
+        env: deps.env,
+        cwd: args.cwd,
+        timeoutMs: args.timeoutMs,
+      }),
+    );
+  }
+
+  if (args.provider === "rule-based") {
+    return buildRuleBasedDriftReview(report);
+  }
+
+  return withDriftMarkdown(
+    await (deps.runAgentReview ?? defaultRunAgentReview)({
+      provider: args.provider,
+      model: args.model,
+      prompt: buildDriftPrompt(report),
+      env: deps.env,
+      cwd: args.cwd,
+      timeoutMs: args.timeoutMs,
+    }),
+  );
+}
+
+function withDriftMarkdown(review: ReviewResult): ReviewResult {
+  return {
+    ...review,
+    markdown: formatDriftReviewMarkdown(review),
+  };
 }
 
 async function runReview(

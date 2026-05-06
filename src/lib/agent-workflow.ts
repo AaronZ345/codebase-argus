@@ -135,7 +135,7 @@ export function buildConflictDossier(
       files: [],
       instructions: [
         "Proceed with inspect or prepare mode first.",
-        "Create a backup branch before any rebase.",
+        "Create a backup branch before any merge or rebase.",
         "Run tests before force-with-lease push.",
       ],
     };
@@ -143,7 +143,7 @@ export function buildConflictDossier(
 
   return {
     risk: "conflict",
-    summary: `${report.mergeTree.conflictFiles.length} conflict file(s) need manual resolution before rebase can be trusted.`,
+    summary: `${report.mergeTree.conflictFiles.length} conflict file(s) need manual resolution before merge or rebase can be trusted.`,
     files: report.mergeTree.conflictFiles.map((file) => ({
       path: file,
       risk: classifyConflictFile(file),
@@ -181,7 +181,7 @@ export function buildAgentPrompt(input: {
     `Mode: ${input.mode}`,
     "",
     "Rules:",
-    "- Create or verify a backup branch before any history rewrite.",
+    "- Create or verify a backup branch before any merge, rebase, or history rewrite.",
     "- Do not push, close PRs, delete branches, or rewrite unrelated files unless explicitly authorized.",
     "- If conflicts appear, list files and stop for human confirmation.",
     "- If tests fail, report the failing command and stop.",
@@ -191,7 +191,7 @@ export function buildAgentPrompt(input: {
     "Commands:",
     ...commands.map((command, index) => `${index + 1}. ${command}`),
     "",
-    "Return a concise execution log with: fetched refs, backup branch, conflict files, tests run, final branch status, and whether push is safe.",
+    "Return a concise execution log with: fetched refs, backup branch, merge/rebase path, conflict files, tests run, final branch status, and whether push is safe.",
   ].join("\n");
 }
 
@@ -294,10 +294,10 @@ export function buildGitHubActionsWorkflow(
     "            echo \"- Patch evidence: $covered covered, $unique unique, $changed changed\"",
     "            echo",
     "            if [[ \"$merge_exit\" -eq 0 ]]; then",
-    "              echo '## Rebase risk'",
+    "              echo '## Merge/Rebase risk'",
     "              echo 'Clean projection from git merge-tree.'",
     "            else",
-    "              echo '## Rebase risk'",
+    "              echo '## Merge/Rebase risk'",
     "              echo 'Potential conflicts from git merge-tree:'",
     "              echo",
     "              if [[ -n \"$conflict_files\" ]]; then",
@@ -463,7 +463,7 @@ export function buildAgentTaskPackage(input: AgentTaskPackageInput): string {
     `Risk: ${risk}`,
     "",
     "## Mission",
-    `Bring \`${input.fork}\` branch \`${input.forkBranch}\` up to date with \`${input.upstream}\` branch \`${input.upstreamBranch}\` using the selected gated mode.`,
+    `Bring \`${input.fork}\` branch \`${input.forkBranch}\` up to date with \`${input.upstream}\` branch \`${input.upstreamBranch}\` using the selected gated mode. Review both merge-upstream and rebase-upstream risk before choosing the integration path.`,
     "",
     "## Inputs",
     `- Upstream: \`${input.upstream}\``,
@@ -472,7 +472,9 @@ export function buildAgentTaskPackage(input: AgentTaskPackageInput): string {
     `- Fork branch: \`${input.forkBranch}\``,
     "",
     "## Risk summary",
-    dossier ? dossier.summary : "Run local risk analysis before prepare or execute mode.",
+    dossier
+      ? dossier.summary
+      : "Run local merge/rebase analysis before prepare or execute mode.",
     "",
     "## Conflict dossier",
     ...conflictFiles,
@@ -492,7 +494,7 @@ export function buildAgentTaskPackage(input: AgentTaskPackageInput): string {
     "## Acceptance checklist",
     "- Fetch commands completed for upstream and fork.",
     "- Backup branch was created or verified before history rewrite.",
-    "- Rebase was attempted only in prepare or execute mode.",
+    "- Merge or rebase was attempted only in prepare or execute mode.",
     "- Conflict files are empty, or the run stopped before push.",
     "- Required tests/build commands were run and passed.",
     "- Final branch status was recorded.",
@@ -502,7 +504,7 @@ export function buildAgentTaskPackage(input: AgentTaskPackageInput): string {
     "```text",
     "Fetched refs:",
     "Backup branch:",
-    "Rebase command and result:",
+    "Merge/rebase command and result:",
     "Conflict files:",
     "Tests/build commands and results:",
     "Final git status:",
@@ -524,7 +526,7 @@ export function parseAgentSessionLog(text: string): AgentLogSummary {
   );
   const testsFailed =
     /\b(fail|failed|error|exit status [1-9]|npm err)\b/i.test(text) &&
-    /\b(test|lint|build|rebase)\b/i.test(text);
+    /\b(test|lint|build|rebase|merge)\b/i.test(text);
   const testsPassed =
     /\b(ok|pass|passed|compiled successfully|lint.*0 problems)\b/i.test(text) &&
     !testsFailed;
@@ -532,7 +534,7 @@ export function parseAgentSessionLog(text: string): AgentLogSummary {
   const backupCreated = /backup\/|backup branch|created backup/i.test(text);
   const fetched = /\bfetch(ed)?\b|remote update/i.test(text);
   const rebaseAttempted =
-    /\bgit\s+rebase\b|\brebasing\b|\bsuccessfully rebased\b/i.test(text);
+    /\bgit\s+rebase\b|\brebasing\b|\bsuccessfully rebased\b|\bgit\s+merge\b|\bmerging\b|\bmerge made by\b/i.test(text);
   const safeToPush =
     fetched &&
     backupCreated &&
@@ -606,10 +608,10 @@ function buildLogNotes(input: {
     notes.push("No backup branch signal found.");
   }
   if (!input.rebaseAttempted) {
-    notes.push("No rebase attempt found.");
+    notes.push("No merge or rebase attempt found.");
   }
   if (input.testsFailed) {
-    notes.push("A test/build/rebase failure appears in the log.");
+    notes.push("A test/build/merge/rebase failure appears in the log.");
   }
   if (!input.testsPassed) {
     notes.push("No passing test/build signal found.");
@@ -620,7 +622,7 @@ function buildLogNotes(input: {
   if (input.pushed) {
     notes.push("The log appears to include a push; verify remote state manually.");
   } else if (input.safeToPush) {
-    notes.push("Fetch, backup, rebase, and passing tests were all detected.");
+    notes.push("Fetch, backup, integration, and passing tests were all detected.");
   }
   if (input.lower.includes("nothing to commit")) {
     notes.push("Working tree may be clean at the end of the run.");

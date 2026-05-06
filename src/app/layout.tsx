@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Fork Drift Sentinel",
   description:
-    "A read-only GitHub API dashboard for fork drift, upstream PRs, and cleanup candidates.",
+    "A read-only maintainer firewall for upstream PR review and downstream fork merge/rebase risk.",
 };
 
 export default function RootLayout({

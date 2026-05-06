@@ -29,6 +29,7 @@ import type {
   ReviewResult,
   ReviewSeverity,
 } from "@/lib/pr-review";
+import { buildRuleBasedDriftReview } from "@/lib/drift-review";
 import { parseReviewPolicy } from "@/lib/review-policy";
 import { formatDate, formatNumber, relativeTime, shortSha } from "@/lib/format";
 import type { LocalAnalysisReport } from "@/lib/local-analyzer";
@@ -76,6 +77,15 @@ export default function Home() {
   const [tribunalProviders, setTribunalProviders] = useState(
     "openai-api, anthropic-api, gemini-api",
   );
+  const [driftReview, setDriftReview] = useState<ReviewResult | null>(null);
+  const [driftAgentLoading, setDriftAgentLoading] = useState(false);
+  const [driftAgentProvider, setDriftAgentProvider] =
+    useState<ReviewProvider>("codex-cli");
+  const [driftAgentModel, setDriftAgentModel] = useState("");
+  const [driftTribunalProviders, setDriftTribunalProviders] = useState(
+    "codex-cli, claude-cli, gemini-cli",
+  );
+  const [copiedDriftMarkdown, setCopiedDriftMarkdown] = useState(false);
   const [policyText, setPolicyText] = useState([
     "requiredChecks: passing",
     "maxChangedFiles: 30",
@@ -127,6 +137,7 @@ export default function Home() {
       });
       setReport(nextReport);
       setLocalReport(null);
+      setDriftReview(null);
       setLocalError("");
       window.localStorage.setItem(
         STORAGE_KEY,
@@ -144,7 +155,7 @@ export default function Home() {
     if (hostedDemo) {
       setLocalReport(null);
       setLocalError(
-        "Local rebase risk analysis is available only when running the app on your machine.",
+        "Local merge/rebase risk analysis is available only when running the app on your machine.",
       );
       return;
     }
@@ -172,9 +183,12 @@ export default function Home() {
           "error" in body && body.error ? body.error : "Local analysis failed.",
         );
       }
-      setLocalReport(body as LocalAnalysisReport);
+      const nextLocalReport = body as LocalAnalysisReport;
+      setLocalReport(nextLocalReport);
+      setDriftReview(buildRuleBasedDriftReview(nextLocalReport));
     } catch (caught) {
       setLocalReport(null);
+      setDriftReview(null);
       setLocalError(
         caught instanceof Error ? caught.message : "Local analysis failed.",
       );
@@ -302,6 +316,103 @@ export default function Home() {
     }
   }
 
+  async function handleDriftAgentReview() {
+    if (!localReport) {
+      setLocalError("Run local merge/rebase analysis before downstream agent review.");
+      return;
+    }
+    if (hostedDemo) {
+      setLocalError("Downstream agent review needs a local or server deployment with API keys or CLIs.");
+      return;
+    }
+
+    setLocalError("");
+    setDriftAgentLoading(true);
+    try {
+      const response = await fetch("/api/drift-agent-review", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          provider: driftAgentProvider,
+          model: driftAgentModel,
+          report: localReport,
+        }),
+      });
+      const body = (await response.json()) as ReviewResult | { error?: string };
+      if (!response.ok) {
+        throw new Error(
+          "error" in body && body.error
+            ? body.error
+            : "Downstream agent review failed.",
+        );
+      }
+      setDriftReview(body as ReviewResult);
+    } catch (caught) {
+      setLocalError(
+        caught instanceof Error
+          ? caught.message
+          : "Downstream agent review failed.",
+      );
+    } finally {
+      setDriftAgentLoading(false);
+    }
+  }
+
+  async function handleDriftTribunalReview() {
+    if (!localReport) {
+      setLocalError("Run local merge/rebase analysis before downstream tribunal review.");
+      return;
+    }
+    if (hostedDemo) {
+      setLocalError("Downstream tribunal review needs a local or server deployment with API keys or CLIs.");
+      return;
+    }
+
+    const providers = driftTribunalProviders
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => ({ provider: value as ReviewProvider }));
+    if (!providers.length) {
+      setLocalError("Enter at least one downstream tribunal provider.");
+      return;
+    }
+
+    setLocalError("");
+    setDriftAgentLoading(true);
+    try {
+      const response = await fetch("/api/drift-agent-review", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          providers,
+          report: localReport,
+        }),
+      });
+      const body = (await response.json()) as ReviewResult | { error?: string };
+      if (!response.ok) {
+        throw new Error(
+          "error" in body && body.error
+            ? body.error
+            : "Downstream tribunal review failed.",
+        );
+      }
+      setDriftReview(body as ReviewResult);
+    } catch (caught) {
+      setLocalError(
+        caught instanceof Error
+          ? caught.message
+          : "Downstream tribunal review failed.",
+      );
+    } finally {
+      setDriftAgentLoading(false);
+    }
+  }
+
   const summary = useMemo(() => buildSummary(report), [report]);
   const upstreamBranch =
     report?.upstream.defaultBranch ?? localReport?.upstream.branch ?? "main";
@@ -375,11 +486,11 @@ export default function Home() {
             <span className="brand-mark">FD</span>
             <span className="brand-name">Fork Drift Sentinel</span>
           </div>
-          <h1>Track fork drift before it becomes PR debt.</h1>
+          <h1>Review upstream PRs and downstream fork drift with evidence.</h1>
           <p>
-            Compare an upstream repository with a long-lived fork, inspect open
-            pull requests from that fork, and surface commits that may already
-            be covered upstream.
+            One read-only tool for upstream maintainers reviewing incoming PRs
+            and downstream maintainers deciding how to merge or rebase upstream
+            into a long-lived fork.
           </p>
         </div>
 
@@ -433,10 +544,10 @@ export default function Home() {
               disabled={localLoading || hostedDemo}
             >
               {hostedDemo
-                ? "Local risk is local-only"
+                ? "Integration risk is local-only"
                 : localLoading
                   ? "Running git..."
-                  : "Run local risk"}
+                  : "Run integration risk"}
             </button>
             <button
               type="button"
@@ -460,6 +571,33 @@ export default function Home() {
             GitHub rate limits unauthenticated requests.
           </p>
         </form>
+      </section>
+
+      <section className="capability-grid" aria-label="Capabilities">
+        <article>
+          <span>Overall</span>
+          <h2>Evidence-first guardrails</h2>
+          <p>
+            Findings carry files, checks, patch lines, policy gates, provider
+            consensus, or local git output. The app stays read-only by default.
+          </p>
+        </article>
+        <article>
+          <span>Upstream</span>
+          <h2>PR review and tribunal</h2>
+          <p>
+            Review normal pull requests with deterministic checks, policy as
+            code, API models, local AI CLIs, or a multi-agent tribunal.
+          </p>
+        </article>
+        <article>
+          <span>Downstream</span>
+          <h2>Merge/rebase fork review</h2>
+          <p>
+            Compare a fork with upstream, project merge conflicts, simulate
+            rebase, and send the integration dossier to one or more agents.
+          </p>
+        </article>
       </section>
 
       {error ? <div className="error-panel">{error}</div> : null}
@@ -520,6 +658,25 @@ export default function Home() {
       <LocalRiskPanel
         localReport={localReport}
         localError={localError}
+        driftReview={driftReview}
+        provider={driftAgentProvider}
+        onProviderChange={setDriftAgentProvider}
+        model={driftAgentModel}
+        onModelChange={setDriftAgentModel}
+        tribunalProviders={driftTribunalProviders}
+        onTribunalProvidersChange={setDriftTribunalProviders}
+        agentLoading={driftAgentLoading}
+        onAgentReview={handleDriftAgentReview}
+        onTribunalReview={handleDriftTribunalReview}
+        copiedMarkdown={copiedDriftMarkdown}
+        onCopyMarkdown={async () => {
+          if (!driftReview) {
+            return;
+          }
+          await navigator.clipboard.writeText(driftReview.markdown);
+          setCopiedDriftMarkdown(true);
+          window.setTimeout(() => setCopiedDriftMarkdown(false), 1400);
+        }}
         loading={localLoading}
         onAnalyze={handleLocalAnalyze}
         hostedDemo={hostedDemo}
@@ -571,12 +728,12 @@ export default function Home() {
         </section>
       ) : (
         <section className="empty-state">
-          <h2>Start with a repository pair.</h2>
+          <h2>Start with a downstream repository pair.</h2>
           <p>
             Enter an upstream repository and a fork repository. If the PR head
             fork differs from the branch you track for drift, fill that in too.
-            If GitHub API rate limits block the browser report, use Local Risk
-            directly.
+            If GitHub API rate limits block the browser report, run local
+            merge/rebase analysis directly.
           </p>
         </section>
       )}
@@ -641,10 +798,11 @@ function PullRequestReviewPanel({
     <article className="panel pr-review-panel">
       <div className="panel-header">
         <div>
-          <h2>PR Review</h2>
+          <h2>Upstream PR Review</h2>
           <p>
-            Review a normal GitHub pull request with baseline checks, then hand
-            the same context to Codex, Claude, Gemini, or an API model.
+            For upstream maintainers: review a normal GitHub pull request with
+            baseline checks, then hand the same context to Codex, Claude,
+            Gemini, or an API model.
           </p>
         </div>
         {review ? (
@@ -801,9 +959,8 @@ function PullRequestReviewPanel({
             </div>
           ) : (
             <p className="muted">
-              This mode works for upstream maintainers too: paste a PR URL,
-              inspect the local baseline, then optionally ask an agent for a
-              structured review.
+              Paste a PR URL, inspect the deterministic baseline, then
+              optionally ask one agent or a tribunal for a structured review.
             </p>
           )}
 
@@ -936,10 +1093,11 @@ function ActionsWorkflowPanel({
     <article className="panel actions-panel">
       <div className="panel-header">
         <div>
-          <h2>GitHub Actions Mode</h2>
+          <h2>Downstream Drift Action</h2>
           <p>
-            Generate a workflow that posts the drift report to the run summary
-            and optionally comments on a tracking issue.
+            Generate a scheduled workflow for downstream fork drift reports,
+            merge-tree evidence, range-diff, and optional tracking issue
+            comments.
           </p>
         </div>
         <button type="button" className="secondary-button" onClick={onCopyWorkflow}>
@@ -1013,10 +1171,11 @@ function AgentWorkflowPanel({
     <article className="panel agent-panel">
       <div className="panel-header">
         <div>
-          <h2>Agent Workflow</h2>
+          <h2>Downstream Agent Workflow</h2>
           <p>
-            Export a safe task prompt, inspect conflict evidence, and paste an
-            agent execution log back for a quick safety read.
+            Export a safe prompt for merge or rebase preparation, inspect
+            conflict evidence, and paste an agent execution log back for a
+            quick safety read.
           </p>
         </div>
         <label className="mode-picker">
@@ -1026,7 +1185,7 @@ function AgentWorkflowPanel({
             onChange={(event) => onModeChange(event.target.value as RunbookMode)}
           >
             <option value="inspect">Inspect only</option>
-            <option value="prepare">Prepare rebase</option>
+            <option value="prepare">Prepare integration</option>
             <option value="execute">Execute with gate</option>
           </select>
         </label>
@@ -1086,7 +1245,8 @@ function AgentWorkflowPanel({
             </div>
           ) : (
             <p className="small-muted">
-              Run local risk to generate conflict-specific agent instructions.
+              Run local merge/rebase analysis to generate conflict-specific
+              agent instructions.
             </p>
           )}
         </div>
@@ -1114,7 +1274,7 @@ function AgentWorkflowPanel({
             </div>
           ) : (
             <p className="small-muted">
-              Local risk adds git cherry and range-diff evidence here.
+              Local analysis adds git cherry and range-diff evidence here.
             </p>
           )}
         </div>
@@ -1146,7 +1306,7 @@ function AgentLogSummaryView({ summary }: { summary: AgentLogSummary }) {
   const rows = [
     ["Fetched", summary.fetched],
     ["Backup", summary.backupCreated],
-    ["Rebase", summary.rebaseAttempted],
+    ["Integration", summary.rebaseAttempted],
     ["Tests passed", summary.testsPassed],
     ["Tests failed", summary.testsFailed],
     ["Pushed", summary.pushed],
@@ -1308,12 +1468,36 @@ function PullRequestPanel({ report }: { report: ForkReport }) {
 function LocalRiskPanel({
   localReport,
   localError,
+  driftReview,
+  provider,
+  onProviderChange,
+  model,
+  onModelChange,
+  tribunalProviders,
+  onTribunalProvidersChange,
+  agentLoading,
+  onAgentReview,
+  onTribunalReview,
+  copiedMarkdown,
+  onCopyMarkdown,
   loading,
   onAnalyze,
   hostedDemo,
 }: {
   localReport: LocalAnalysisReport | null;
   localError: string;
+  driftReview: ReviewResult | null;
+  provider: ReviewProvider;
+  onProviderChange: (value: ReviewProvider) => void;
+  model: string;
+  onModelChange: (value: string) => void;
+  tribunalProviders: string;
+  onTribunalProvidersChange: (value: string) => void;
+  agentLoading: boolean;
+  onAgentReview: () => Promise<void>;
+  onTribunalReview: () => Promise<void>;
+  copiedMarkdown: boolean;
+  onCopyMarkdown: () => Promise<void>;
   loading: boolean;
   onAnalyze: () => Promise<void>;
   hostedDemo: boolean;
@@ -1322,10 +1506,10 @@ function LocalRiskPanel({
     <article className="panel local-risk-panel">
       <div className="panel-header">
         <div>
-          <h2>Rebase Risk</h2>
+          <h2>Downstream Merge/Rebase Risk</h2>
           <p>
-            Runs local git in a private cache to project conflicts and prepare
-            an agent-safe runbook.
+            Runs local git in a private cache, checks merge-upstream and
+            rebase-upstream evidence, then prepares agent-safe review material.
           </p>
         </div>
         <button
@@ -1337,7 +1521,7 @@ function LocalRiskPanel({
             ? "Local-only"
             : loading
               ? "Running git..."
-              : "Run local analysis"}
+              : "Run integration analysis"}
         </button>
       </div>
 
@@ -1361,7 +1545,7 @@ function LocalRiskPanel({
           </div>
 
           <div className="risk-block">
-            <h3>Conflict files</h3>
+            <h3>Merge-tree conflicts</h3>
             {localReport.mergeTree.conflictFiles.length ? (
               <ul className="compact-list">
                 {localReport.mergeTree.conflictFiles.map((file) => (
@@ -1372,7 +1556,7 @@ function LocalRiskPanel({
               </ul>
             ) : (
               <p className="small-muted">
-                `git merge-tree` reports no content conflicts.
+                `git merge-tree` reports no content conflicts for the merge path.
               </p>
             )}
           </div>
@@ -1393,7 +1577,7 @@ function LocalRiskPanel({
               </ul>
             ) : (
               <p className="small-muted">
-                Temporary worktree rebase did not report conflicts.
+                Temporary worktree rebase did not report conflicts for the rebase path.
               </p>
             )}
           </div>
@@ -1424,7 +1608,7 @@ function LocalRiskPanel({
           ) : null}
 
           <div className="risk-block wide">
-            <h3>Agent runbook</h3>
+            <h3>Gated integration runbook</h3>
             <ol className="runbook">
               {localReport.runbook.map((command) => (
                 <li key={command}>
@@ -1433,11 +1617,110 @@ function LocalRiskPanel({
               ))}
             </ol>
           </div>
+
+          <div className="risk-block wide downstream-review-block">
+            <div className="block-heading">
+              <div>
+                <h3>Multi-agent integration review</h3>
+                <p className="small-muted no-pad">
+                  Send the same merge-tree, rebase simulation, cherry, and
+                  range-diff evidence to API models or local AI CLIs.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={onCopyMarkdown}
+                disabled={!driftReview}
+              >
+                {copiedMarkdown ? "Copied" : "Copy markdown"}
+              </button>
+            </div>
+
+            <div className="downstream-review-controls">
+              <label className="compact-field">
+                Agent provider
+                <select
+                  value={provider}
+                  onChange={(event) =>
+                    onProviderChange(event.target.value as ReviewProvider)
+                  }
+                >
+                  <option value="openai-api">OpenAI API</option>
+                  <option value="anthropic-api">Anthropic API</option>
+                  <option value="gemini-api">Gemini API</option>
+                  <option value="codex-cli">Codex CLI</option>
+                  <option value="claude-cli">Claude CLI</option>
+                  <option value="gemini-cli">Gemini CLI</option>
+                </select>
+              </label>
+              <label className="compact-field">
+                Model override
+                <input
+                  value={model}
+                  onChange={(event) => onModelChange(event.target.value)}
+                  placeholder="Optional"
+                  spellCheck={false}
+                />
+              </label>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={onAgentReview}
+                disabled={!localReport || agentLoading || hostedDemo}
+              >
+                {hostedDemo
+                  ? "Server-only"
+                  : agentLoading
+                    ? "Running agent..."
+                    : "Run agent review"}
+              </button>
+              <label className="compact-field">
+                Tribunal providers
+                <input
+                  value={tribunalProviders}
+                  onChange={(event) =>
+                    onTribunalProvidersChange(event.target.value)
+                  }
+                  spellCheck={false}
+                />
+              </label>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={onTribunalReview}
+                disabled={!localReport || agentLoading || hostedDemo}
+              >
+                {agentLoading ? "Running tribunal..." : "Run tribunal"}
+              </button>
+            </div>
+
+            {driftReview ? (
+              <div className="review-result embedded-review">
+                <div className="block-heading">
+                  <div>
+                    <h3>{driftReview.provider} review</h3>
+                    <p>{driftReview.summary}</p>
+                  </div>
+                  <StatusPill
+                    tone={riskTone(driftReview.risk)}
+                    label={driftReview.risk}
+                  />
+                </div>
+                <ReviewFindingList findings={driftReview.findings} />
+                <textarea
+                  readOnly
+                  value={driftReview.markdown}
+                  className="review-markdown-box"
+                />
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : (
         <p className="muted">
           {hostedDemo
-            ? "Hosted demo cannot run local git. Clone the repository and run the app locally to use rebase risk analysis."
+            ? "Hosted demo cannot run local git. Clone the repository and run the app locally to use merge/rebase risk analysis."
             : "Run local analysis to clone/fetch repositories into `.cache/repos`. It does not need a GitHub token for public repos and will not modify your working copy. Without a GitHub report it assumes `main` as both branch names."}
         </p>
       )}
@@ -1531,8 +1814,8 @@ function MethodPanel({ report }: { report: ForkReport }) {
           upstream commits.
         </li>
         <li>
-          Rebase Risk uses local git commands in `.cache/repos`; it creates no
-          commits and does not push.
+          Downstream integration risk uses local git commands in `.cache/repos`;
+          it creates no commits and does not push.
         </li>
         <li>
           The app never writes to GitHub and never stores your token.
