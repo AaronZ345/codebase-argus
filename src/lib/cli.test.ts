@@ -97,7 +97,7 @@ const localReport: LocalAnalysisReport = {
   },
   runbooks: {
     inspect: ["git fetch --prune upstream main"],
-    prepare: ["git branch backup/fork-drift-before-rebase"],
+    prepare: ["git branch backup/codebase-argus-before-rebase"],
     execute: ["git rebase upstream/main"],
   },
   runbook: ["git rebase upstream/main"],
@@ -114,7 +114,7 @@ describe("CLI helpers", () => {
         "--format",
         "json",
         "--policy",
-        ".fork-drift-sentinel.yml",
+        ".codebase-argus.yml",
       ]),
     ).toMatchObject({
       command: "review",
@@ -125,7 +125,7 @@ describe("CLI helpers", () => {
       },
       provider: "rule-based",
       format: "json",
-      policyPath: ".fork-drift-sentinel.yml",
+      policyPath: ".codebase-argus.yml",
     });
   });
 
@@ -146,10 +146,14 @@ describe("CLI helpers", () => {
     });
   });
 
-  test("parses a downstream drift command with an AI CLI provider", () => {
+  test("parses subcommand help without requiring positional arguments", () => {
+    expect(parseCliArgs(["downstream", "--help"])).toEqual({ command: "help" });
+  });
+
+  test("parses a downstream review command with an AI CLI provider", () => {
     expect(
       parseCliArgs([
-        "drift",
+        "downstream",
         "owner/upstream",
         "me/fork",
         "--upstream-branch",
@@ -263,7 +267,7 @@ describe("CLI helpers", () => {
         "--model",
         "gpt-test",
         "--policy",
-        ".fork-drift-sentinel.yml",
+        ".codebase-argus.yml",
       ],
       {
         env: { GITHUB_TOKEN: "gh-token" },
@@ -283,12 +287,12 @@ describe("CLI helpers", () => {
     expect(stdout).toHaveBeenCalledWith("agent markdown");
   });
 
-  test("runs downstream drift analysis through an injected AI CLI provider", async () => {
+  test("runs downstream review analysis through an injected AI CLI provider", async () => {
     const stdout = vi.fn();
     const runAgentReview = vi.fn(async () => ({
       provider: "codex-cli" as const,
       model: "codex",
-      summary: "Downstream drift needs conflict handling.",
+      summary: "Downstream review needs conflict handling.",
       risk: "high" as const,
       findings: [
         {
@@ -314,7 +318,7 @@ describe("CLI helpers", () => {
 
     const code = await runCli(
       [
-        "drift",
+        "downstream",
         "owner/upstream",
         "me/fork",
         "--fork-branch",
@@ -343,7 +347,7 @@ describe("CLI helpers", () => {
     expect(runAgentReview.mock.calls[0][0].prompt.user).toContain(
       "Rebase simulation",
     );
-    expect(stdout.mock.calls.join("\n")).toContain("## Fork Drift Review");
+    expect(stdout.mock.calls.join("\n")).toContain("## Downstream Fork Review");
   });
 
   test("runs CI log analysis through an injected AI provider", async () => {
@@ -464,7 +468,7 @@ describe("CLI helpers", () => {
 
     expect(code).toBe(0);
     expect(stdout.mock.calls.join("\n")).toContain("## Autofix Plan");
-    expect(stdout.mock.calls.join("\n")).toContain("fds/autofix-pr-12");
+    expect(stdout.mock.calls.join("\n")).toContain("argus/autofix-pr-12");
   });
 
   test("runs an injected downstream sync executor only when execute is set", async () => {

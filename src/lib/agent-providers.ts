@@ -158,6 +158,7 @@ export function resolveProviderConfig(
 
   const resolvedModel =
     model.trim() ||
+    env[`ARGUS_${provider.replace("-", "_").toUpperCase()}_MODEL`]?.trim() ||
     env[`FDS_${provider.replace("-", "_").toUpperCase()}_MODEL`]?.trim() ||
     DEFAULT_MODELS[provider];
 

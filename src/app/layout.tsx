@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fork Drift Sentinel",
+  title: "Codebase Argus",
   description:
-    "A read-only maintainer firewall for upstream PR review and downstream fork merge/rebase risk.",
+    "Multi-agent codebase review for PRs, CI failures, and downstream fork syncs.",
 };
 
 export default function RootLayout({

@@ -18,6 +18,8 @@ import {
 import { DEFAULT_REVIEW_POLICY } from "./review-policy";
 
 type Env = Record<string, string | undefined>;
+const PAUSE_LABEL = "argus:paused";
+const LEGACY_PAUSE_LABEL = "fds:paused";
 
 type JsonResponse = {
   ok: boolean;
@@ -342,10 +344,10 @@ export async function handleGitHubWebhook(input: {
 }): Promise<GitHubWebhookResult> {
   const env = input.env ?? process.env;
   const secret = env.GITHUB_WEBHOOK_SECRET?.trim();
-  if (!secret && env.FDS_ALLOW_UNSIGNED_WEBHOOKS !== "true") {
+  if (!secret && envFlag(env, "ALLOW_UNSIGNED_WEBHOOKS") !== "true") {
     return {
       status: "misconfigured",
-      reason: "GITHUB_WEBHOOK_SECRET is required unless FDS_ALLOW_UNSIGNED_WEBHOOKS=true.",
+      reason: "GITHUB_WEBHOOK_SECRET is required unless ARGUS_ALLOW_UNSIGNED_WEBHOOKS=true.",
     };
   }
   if (
@@ -393,10 +395,10 @@ export async function handleGitHubWebhook(input: {
     number,
     token,
   });
-  if (report.pullRequest.labels.includes("fds:paused")) {
+  if (report.pullRequest.labels.some((label) => isPauseLabel(label))) {
     return {
       status: "ignored",
-      reason: "Pull request review is paused by fds:paused label.",
+      reason: `Pull request review is paused by ${PAUSE_LABEL} label.`,
     };
   }
   let review = await runConfiguredReview(report, env);
@@ -411,10 +413,10 @@ export async function handleGitHubWebhook(input: {
   review = appendCiFindings(review, ciLogs);
 
   const comments =
-    env.FDS_WEBHOOK_INLINE_COMMENTS === "true"
+    envFlag(env, "WEBHOOK_INLINE_COMMENTS") === "true"
       ? buildPullRequestReviewComments(review, report)
       : [];
-  if (env.FDS_WEBHOOK_DRY_RUN === "true") {
+  if (envFlag(env, "WEBHOOK_DRY_RUN") === "true") {
     return {
       status: "reviewed",
       review,
@@ -444,7 +446,9 @@ export async function handleGitHubWebhook(input: {
 }
 
 export function parseReviewCommand(body: string): ReviewCommand | null {
-  const match = body.trim().match(/^\/(?:fds|fork-drift)(?:\s+([a-z-]+))?/i);
+  const match = body
+    .trim()
+    .match(/^\/(?:argus|codebase-argus|fds|fork-drift)(?:\s+([a-z-]+))?/i);
   if (!match) {
     return null;
   }
@@ -504,7 +508,7 @@ async function handleIssueCommentWebhook(
   }
   const command = parseReviewCommand(payload.comment?.body ?? "");
   if (!command) {
-    return { status: "ignored", reason: "Issue comment did not contain an FDS command." };
+    return { status: "ignored", reason: "Issue comment did not contain an Argus command." };
   }
   const owner = payload.repository?.owner?.login;
   const repo = payload.repository?.name;
@@ -523,7 +527,7 @@ async function handleIssueCommentWebhook(
       owner,
       repo,
       number,
-      labels: ["fds:paused"],
+      labels: [PAUSE_LABEL],
       token,
       fetchImpl: input.fetchImpl,
     });
@@ -532,7 +536,7 @@ async function handleIssueCommentWebhook(
       repo,
       number,
       token,
-      body: "Paused automatic Fork Drift Sentinel reviews for this PR. Use `/fds resume` to enable them again.",
+      body: "Paused automatic Codebase Argus reviews for this PR. Use `/argus resume` to enable them again.",
       fetchImpl: input.fetchImpl,
     });
     return { status: "commanded", action: "pause", commentUrl: comment.htmlUrl };
@@ -543,7 +547,7 @@ async function handleIssueCommentWebhook(
       owner,
       repo,
       number,
-      label: "fds:paused",
+      label: PAUSE_LABEL,
       token,
       fetchImpl: input.fetchImpl,
     });
@@ -552,7 +556,7 @@ async function handleIssueCommentWebhook(
       repo,
       number,
       token,
-      body: "Resumed automatic Fork Drift Sentinel reviews for this PR.",
+      body: "Resumed automatic Codebase Argus reviews for this PR.",
       fetchImpl: input.fetchImpl,
     });
     return { status: "commanded", action: "resume", commentUrl: comment.htmlUrl };
@@ -565,13 +569,15 @@ async function handleIssueCommentWebhook(
       number,
       token,
       body: [
-        "Fork Drift Sentinel commands:",
+        "Codebase Argus commands:",
         "",
-        "- `/fds review` runs PR review now.",
-        "- `/fds ci` reviews failing GitHub Actions logs.",
-        "- `/fds autofix` posts a gated autofix branch plan.",
-        "- `/fds pause` pauses automatic review with the `fds:paused` label.",
-        "- `/fds resume` removes the pause label.",
+        "- `/argus review` runs PR review now.",
+        "- `/argus ci` reviews failing GitHub Actions logs.",
+        "- `/argus autofix` posts a gated autofix branch plan.",
+        `- \`/argus pause\` pauses automatic review with the \`${PAUSE_LABEL}\` label.`,
+        "- `/argus resume` removes the pause label.",
+        "",
+        "Legacy `/fds` commands still work.",
       ].join("\n"),
       fetchImpl: input.fetchImpl,
     });
@@ -587,7 +593,7 @@ async function handleIssueCommentWebhook(
 
   if (command.action === "ci") {
     const logs = await collectCiLogs({
-      env: { ...env, FDS_WEBHOOK_INCLUDE_CI_LOGS: "true" },
+      env: { ...env, ARGUS_WEBHOOK_INCLUDE_CI_LOGS: "true" },
       report,
       token,
       fetchFailedGitHubActionsLogsImpl:
@@ -722,7 +728,7 @@ async function runConfiguredReview(
   report: PullRequestReviewReport,
   env: Env,
 ): Promise<ReviewResult> {
-  const tribunal = env.FDS_WEBHOOK_TRIBUNAL?.trim();
+  const tribunal = envValue(env, "WEBHOOK_TRIBUNAL");
   if (tribunal) {
     return runTribunalReview({
       providers: parseTribunalProviders(tribunal),
@@ -732,16 +738,16 @@ async function runConfiguredReview(
     });
   }
 
-  const provider = (env.FDS_WEBHOOK_PROVIDER?.trim() || "rule-based") as ReviewProvider;
+  const provider = (envValue(env, "WEBHOOK_PROVIDER") || "rule-based") as ReviewProvider;
   if (provider === "rule-based") {
     return buildRuleBasedReview(report, DEFAULT_REVIEW_POLICY);
   }
   if (provider === "tribunal") {
-    throw new Error("Use FDS_WEBHOOK_TRIBUNAL to configure tribunal providers.");
+    throw new Error("Use ARGUS_WEBHOOK_TRIBUNAL to configure tribunal providers.");
   }
   return runAgentReview({
     provider,
-    model: env.FDS_WEBHOOK_MODEL,
+    model: envValue(env, "WEBHOOK_MODEL"),
     prompt: buildReviewPrompt(report, DEFAULT_REVIEW_POLICY),
     env,
     cwd: process.cwd(),
@@ -770,7 +776,7 @@ async function collectCiLogs(input: {
   fetchImpl?: FetchImpl;
 }): Promise<GitHubActionsLog[]> {
   if (
-    input.env.FDS_WEBHOOK_INCLUDE_CI_LOGS === "false" ||
+    envFlag(input.env, "WEBHOOK_INCLUDE_CI_LOGS") === "false" ||
     input.report.checks.state !== "failing" ||
     !input.report.checks.runs?.length
   ) {
@@ -812,6 +818,18 @@ function appendCiFindings(
   };
   result.markdown = formatReviewMarkdown(result);
   return result;
+}
+
+function envValue(env: Env, name: string): string {
+  return env[`ARGUS_${name}`]?.trim() || env[`FDS_${name}`]?.trim() || "";
+}
+
+function envFlag(env: Env, name: string): string {
+  return envValue(env, name).toLowerCase();
+}
+
+function isPauseLabel(label: string): boolean {
+  return label === PAUSE_LABEL || label === LEGACY_PAUSE_LABEL;
 }
 
 function maxRisk(risks: ReviewResult["risk"][]): ReviewResult["risk"] {

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add read-only PR review and direct AI provider review to Fork Drift Sentinel without renaming the project.
+**Goal:** Add read-only PR review and direct AI provider review to Codebase Argus.
 
 **Architecture:** GitHub PR data is fetched into a normalized `PullRequestReviewReport`. Deterministic local review helpers create a baseline. A server-only provider layer calls OpenAI, Anthropic, Gemini, Codex CLI, Claude CLI, or Gemini CLI and normalizes JSON findings for the UI.
 
@@ -43,7 +43,7 @@
 - [ ] Add client state for PR input, PR report, provider selection, model override, AI loading, AI result, and errors.
 - [ ] Add `PullRequestReviewPanel` with fetch, baseline findings, AI provider controls, result markdown, and file risk table.
 - [ ] Reuse existing panel, compact field, status pill, table, textarea, and button styles.
-- [ ] Keep the existing Fork Drift Sentinel branding.
+- [ ] Keep the Codebase Argus branding.
 
 ### Task 4: Documentation And Verification
 

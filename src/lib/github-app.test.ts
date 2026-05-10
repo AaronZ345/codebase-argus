@@ -264,7 +264,7 @@ describe("GitHub App review helpers", () => {
       env: {
         GITHUB_WEBHOOK_SECRET: "secret",
         GITHUB_TOKEN: "installation-token",
-        FDS_WEBHOOK_INLINE_COMMENTS: "true",
+        ARGUS_WEBHOOK_INLINE_COMMENTS: "true",
       },
       fetchPullRequestReviewReport: vi.fn(async () => report),
       fetchFailedGitHubActionsLogs: vi.fn(async () => []),
@@ -286,6 +286,7 @@ describe("GitHub App review helpers", () => {
   });
 
   test("parses PR comment commands", () => {
+    expect(parseReviewCommand("/argus review")).toEqual({ action: "review" });
     expect(parseReviewCommand("/fds review")).toEqual({ action: "review" });
     expect(parseReviewCommand("/fork-drift ci")).toEqual({ action: "ci" });
     expect(parseReviewCommand("looks good")).toBeNull();
@@ -297,7 +298,7 @@ describe("GitHub App review helpers", () => {
       installation: { id: 99 },
       repository: { name: "repo", owner: { login: "owner" } },
       issue: { number: 42, pull_request: { url: "https://api.github.com/repos/owner/repo/pulls/42" } },
-      comment: { body: "/fds pause" },
+      comment: { body: "/argus pause" },
     });
     const signature = `sha256=${createHmac("sha256", "secret").update(body).digest("hex")}`;
     const addIssueLabels = vi.fn(async () => undefined);
@@ -326,7 +327,7 @@ describe("GitHub App review helpers", () => {
         owner: "owner",
         repo: "repo",
         number: 42,
-        labels: ["fds:paused"],
+        labels: ["argus:paused"],
       }),
     );
     expect(postIssueComment.mock.calls[0][0].body).toContain("Paused");
@@ -344,7 +345,7 @@ describe("GitHub App review helpers", () => {
       ...report,
       pullRequest: {
         ...report.pullRequest,
-        labels: ["fds:paused"],
+        labels: ["argus:paused"],
       },
     };
     const postPullRequestReviewImpl = vi.fn();
@@ -365,19 +366,19 @@ describe("GitHub App review helpers", () => {
 
     expect(result).toEqual({
       status: "ignored",
-      reason: "Pull request review is paused by fds:paused label.",
+      reason: "Pull request review is paused by argus:paused label.",
     });
     expect(postPullRequestReviewImpl).not.toHaveBeenCalled();
   });
 
   test("builds a GitHub App manifest for setup", () => {
     const manifest = buildGitHubAppManifest({
-      name: "Fork Drift Sentinel",
-      url: "https://fds.example.com",
+      name: "Codebase Argus",
+      url: "https://argus.example.com",
     });
 
     expect(manifest.hook_attributes.url).toBe(
-      "https://fds.example.com/api/github/webhook",
+      "https://argus.example.com/api/github/webhook",
     );
     expect(manifest.default_permissions.pull_requests).toBe("write");
     expect(manifest.default_events).toContain("issue_comment");

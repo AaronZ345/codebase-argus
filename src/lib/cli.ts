@@ -145,6 +145,9 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   if (!command || command === "help" || command === "--help" || command === "-h") {
     return { command: "help" };
   }
+  if (isKnownCommand(command) && (firstRef === "--help" || firstRef === "-h")) {
+    return { command: "help" };
+  }
 
   if (command === "review") {
     if (!firstRef) {
@@ -153,7 +156,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     return parseReviewArgs(firstRef, [secondRef, ...remaining].filter(Boolean));
   }
 
-  if (command === "drift") {
+  if (isDownstreamReviewCommand(command)) {
     if (!firstRef || !secondRef) {
       throw new Error(`Missing upstream or fork repository.\n\n${usage()}`);
     }
@@ -583,15 +586,17 @@ export async function runCli(
 
 export function usage(): string {
   return [
-    "Fork Drift Sentinel CLI",
+    "Codebase Argus CLI",
     "",
     "Usage:",
-    "  fork-drift-sentinel review <owner/repo#123|github-pr-url> [options]",
-    "  fork-drift-sentinel drift <upstream-owner/repo> <fork-owner/repo> [options]",
-    "  fork-drift-sentinel ci-log <path> [options]",
-    "  fork-drift-sentinel ci-github <owner/repo#123|github-pr-url> [options]",
-    "  fork-drift-sentinel autofix-plan <owner/repo#123|github-pr-url> [options]",
-    "  fork-drift-sentinel sync <upstream-owner/repo> <fork-owner/repo> [options]",
+    "  codebase-argus review <owner/repo#123|github-pr-url> [options]",
+    "  codebase-argus downstream <upstream-owner/repo> <fork-owner/repo> [options]",
+    "  codebase-argus ci-log <path> [options]",
+    "  codebase-argus ci-github <owner/repo#123|github-pr-url> [options]",
+    "  codebase-argus autofix-plan <owner/repo#123|github-pr-url> [options]",
+    "  codebase-argus sync <upstream-owner/repo> <fork-owner/repo> [options]",
+    "",
+    "Legacy aliases: drift command, fork-drift-sentinel binary",
     "",
     "Options:",
     "  --provider <provider>       rule-based, openai-api, anthropic-api, gemini-api, codex-cli, claude-cli, gemini-cli",
@@ -600,8 +605,8 @@ export function usage(): string {
     "  --format <markdown|json>    output format, default markdown",
     "  --policy <path>             PR review only: JSON or simple YAML policy file",
     "  --github-token <token>      PR review, ci-github, and autofix-plan only: GitHub token override",
-    "  --upstream-branch <branch>  drift only: upstream branch, default main",
-    "  --fork-branch <branch>      drift only: fork branch, default main",
+    "  --upstream-branch <branch>  downstream/sync only: upstream branch, default main",
+    "  --fork-branch <branch>      downstream/sync only: fork branch, default main",
     "  --mode <merge|rebase>       sync only: integration mode, default merge",
     "  --branch <branch>           sync only: branch to create, default sync/upstream-main",
     "  --test <command>            sync only: test command, repeatable",
@@ -611,6 +616,21 @@ export function usage(): string {
     "  --cwd <path>                working directory for CLI providers",
     "  --timeout-ms <number>       agent timeout, default provider setting",
   ].join("\n");
+}
+
+function isDownstreamReviewCommand(command: string): boolean {
+  return command === "downstream" || command === "fork-review" || command === "drift";
+}
+
+function isKnownCommand(command: string): boolean {
+  return (
+    command === "review" ||
+    isDownstreamReviewCommand(command) ||
+    command === "ci-log" ||
+    command === "ci-github" ||
+    command === "autofix-plan" ||
+    command === "sync"
+  );
 }
 
 async function runCiLog(

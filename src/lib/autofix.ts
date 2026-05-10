@@ -25,7 +25,7 @@ export function buildAutofixPlan(input: {
   report: PullRequestReviewReport;
   review: ReviewResult;
 }): AutofixPlan {
-  const branch = `fds/autofix-pr-${input.report.pullRequest.number}`;
+  const branch = `argus/autofix-pr-${input.report.pullRequest.number}`;
   const lanes = [
     buildLockfileLane(input.report, input.review),
     buildSnapshotLane(input.report, input.review),

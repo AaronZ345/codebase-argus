@@ -181,7 +181,7 @@ export function buildDriftPrompt(report: LocalAnalysisReport): ReviewPrompt {
 }
 
 export function formatDriftReviewMarkdown(review: ReviewResult): string {
-  return formatReviewMarkdown(review, "Fork Drift Review");
+  return formatReviewMarkdown(review, "Downstream Fork Review");
 }
 
 function riskFromFindings(findings: ReviewFinding[]): ReviewRisk {

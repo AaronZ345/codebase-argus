@@ -96,7 +96,7 @@ export function buildRunbookModes(context: RunbookContext): RunbookModes {
   const upstreamUrl = githubCloneUrl(context.upstream.repo);
   const forkUrl = githubCloneUrl(context.fork.repo);
   const localBranch = `local/rebase-${context.fork.branch.replaceAll("/", "-")}`;
-  const backupBranch = "backup/fork-drift-before-rebase-$(date +%Y%m%d-%H%M%S)";
+  const backupBranch = "backup/codebase-argus-before-rebase-$(date +%Y%m%d-%H%M%S)";
 
   const inspect = [
     `git remote add upstream ${upstreamUrl} 2>/dev/null || git remote set-url upstream ${upstreamUrl}`,
@@ -205,7 +205,7 @@ export function buildGitHubActionsWorkflow(
     githubExpression(`github.event.inputs.${name} || env.DEFAULT_${name.toUpperCase()}`);
 
   return [
-    "name: Fork Drift Sentinel",
+    "name: Codebase Argus Downstream Review",
     "",
     "on:",
     "  workflow_dispatch:",
@@ -240,7 +240,7 @@ export function buildGitHubActionsWorkflow(
     "  issues: write",
     "",
     "jobs:",
-    "  drift-report:",
+    "  downstream-review:",
     "    runs-on: ubuntu-latest",
     "    env:",
     `      DEFAULT_UPSTREAM_REPO: ${yamlDoubleQuoted(input.upstream)}`,
@@ -248,9 +248,9 @@ export function buildGitHubActionsWorkflow(
     `      DEFAULT_PR_HEAD_REPO: ${yamlDoubleQuoted(prHead)}`,
     `      DEFAULT_UPSTREAM_BRANCH: ${yamlDoubleQuoted(input.upstreamBranch)}`,
     `      DEFAULT_FORK_BRANCH: ${yamlDoubleQuoted(input.forkBranch)}`,
-    `      DRIFT_REPORT_ISSUE: ${yamlDoubleQuoted(issueNumber)}`,
+    `      ARGUS_REPORT_ISSUE: ${yamlDoubleQuoted(issueNumber)}`,
     "    steps:",
-    "      - name: Generate drift report",
+    "      - name: Generate downstream review",
     "        shell: bash",
     "        env:",
     `          GH_TOKEN: ${githubExpression("github.token")}`,
@@ -263,8 +263,8 @@ export function buildGitHubActionsWorkflow(
     `          fork_branch="${fromInputOrDefault("fork_branch")}"`,
     "          workdir=\"$(mktemp -d)\"",
     "          trap 'rm -rf \"$workdir\"' EXIT",
-    "          repo_dir=\"$workdir/drift.git\"",
-    "          report=\"$workdir/fork-drift-report.md\"",
+    "          repo_dir=\"$workdir/downstream.git\"",
+    "          report=\"$workdir/codebase-argus-report.md\"",
     "          git init --bare \"$repo_dir\" >/dev/null",
     "          git -C \"$repo_dir\" remote add upstream \"https://github.com/${upstream}.git\"",
     "          git -C \"$repo_dir\" remote add fork \"https://github.com/${fork}.git\"",
@@ -283,14 +283,14 @@ export function buildGitHubActionsWorkflow(
     "          changed=$(grep -cE '^[[:space:]]*[0-9-]+:.* ! ' \"$workdir/range-diff.txt\" || true)",
     "          conflict_files=$(tail -n +2 \"$workdir/merge-tree.txt\" | sed '/^$/,$d' || true)",
     "          {",
-    "            echo '# Fork Drift Report'",
+    "            echo '# Downstream Fork Review'",
     "            echo",
     "            echo \"Generated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')\"",
     "            echo",
     "            echo \"- Upstream: \\`$upstream\\` branch \\`$upstream_branch\\`\"",
     "            echo \"- Fork: \\`$fork\\` branch \\`$fork_branch\\`\"",
     "            echo \"- PR head repo: \\`$pr_head\\`\"",
-    "            echo \"- Drift: $behind behind, $ahead ahead\"",
+    "            echo \"- Branch delta: $behind behind, $ahead ahead\"",
     "            echo \"- Patch evidence: $covered covered, $unique unique, $changed changed\"",
     "            echo",
     "            if [[ \"$merge_exit\" -eq 0 ]]; then",
@@ -321,8 +321,8 @@ export function buildGitHubActionsWorkflow(
     "            echo '```'",
     "          } > \"$report\"",
     "          cat \"$report\" >> \"$GITHUB_STEP_SUMMARY\"",
-    "          if [[ -n \"$DRIFT_REPORT_ISSUE\" ]]; then",
-    "            gh issue comment \"$DRIFT_REPORT_ISSUE\" --repo \"$fork\" --body-file \"$report\"",
+    "          if [[ -n \"$ARGUS_REPORT_ISSUE\" ]]; then",
+    "            gh issue comment \"$ARGUS_REPORT_ISSUE\" --repo \"$fork\" --body-file \"$report\"",
     "          fi",
     "",
   ].join("\n");
@@ -333,10 +333,10 @@ export function buildPullRequestReviewWorkflow(
 ): string {
   const endpoint = input.reviewEndpoint?.trim() || "";
   const provider = input.provider?.trim() || "openai-api";
-  const policyPath = input.policyPath?.trim() || ".fork-drift-sentinel.yml";
+  const policyPath = input.policyPath?.trim() || ".codebase-argus.yml";
 
   return [
-    "name: Fork Drift Sentinel PR Review",
+    "name: Codebase Argus PR Review",
     "",
     "on:",
     "  pull_request:",
@@ -351,9 +351,9 @@ export function buildPullRequestReviewWorkflow(
     "  review:",
     "    runs-on: ubuntu-latest",
     "    env:",
-    `      FDS_REVIEW_ENDPOINT: ${yamlDoubleQuoted(endpoint)}`,
-    `      FDS_REVIEW_PROVIDER: ${yamlDoubleQuoted(provider)}`,
-    `      FDS_POLICY_PATH: ${yamlDoubleQuoted(policyPath)}`,
+    `      ARGUS_REVIEW_ENDPOINT: ${yamlDoubleQuoted(endpoint)}`,
+    `      ARGUS_REVIEW_PROVIDER: ${yamlDoubleQuoted(provider)}`,
+    `      ARGUS_POLICY_PATH: ${yamlDoubleQuoted(policyPath)}`,
     "    steps:",
     "      - name: Build PR review payload",
     "        id: payload",
@@ -379,8 +379,8 @@ export function buildPullRequestReviewWorkflow(
     "            const body = baseline.length ? baseline.join('\\n') : 'No baseline policy findings.';",
     "            core.setOutput('baseline', body);",
     "            core.setOutput('payload', JSON.stringify({",
-    "              provider: process.env.FDS_REVIEW_PROVIDER,",
-    "              policyPath: process.env.FDS_POLICY_PATH,",
+    "              provider: process.env.ARGUS_REVIEW_PROVIDER,",
+    "              policyPath: process.env.ARGUS_POLICY_PATH,",
     "              repository: `${context.repo.owner}/${context.repo.repo}`,",
     "              pullRequest: {",
     "                number: pr.number,",
@@ -397,14 +397,14 @@ export function buildPullRequestReviewWorkflow(
     "              })),",
     "            }));",
     "",
-    "      - name: Dispatch to Fork Drift Sentinel endpoint",
+    "      - name: Dispatch to Codebase Argus endpoint",
     "        id: remote",
-    "        if: env.FDS_REVIEW_ENDPOINT != ''",
+    "        if: env.ARGUS_REVIEW_ENDPOINT != ''",
     "        shell: bash",
     "        run: |",
     "          set -euo pipefail",
     "          payload='${{ steps.payload.outputs.payload }}'",
-    "          curl -fsS -X POST \"$FDS_REVIEW_ENDPOINT\" \\",
+    "          curl -fsS -X POST \"$ARGUS_REVIEW_ENDPOINT\" \\",
     "            -H 'content-type: application/json' \\",
     "            --data \"$payload\" > review.json",
     "          jq -r '.markdown // .summary // \"Remote review returned no markdown.\"' review.json > review.md",
@@ -414,9 +414,9 @@ export function buildPullRequestReviewWorkflow(
     "        with:",
     "          script: |",
     "            const fs = require('fs');",
-    "            const remote = process.env.FDS_REVIEW_ENDPOINT ? fs.readFileSync('review.md', 'utf8') : '';",
+    "            const remote = process.env.ARGUS_REVIEW_ENDPOINT ? fs.readFileSync('review.md', 'utf8') : '';",
     "            const baseline = `${{ steps.payload.outputs.baseline }}`;",
-    "            const body = remote || `## PR Review\\n\\n${baseline}\\n\\n_Generated by Fork Drift Sentinel baseline guard._`;",
+    "            const body = remote || `## PR Review\\n\\n${baseline}\\n\\n_Generated by Codebase Argus baseline guard._`;",
     "            await github.rest.issues.createComment({",
     "              owner: context.repo.owner,",
     "              repo: context.repo.repo,",
@@ -455,7 +455,7 @@ export function buildAgentTaskPackage(input: AgentTaskPackageInput): string {
     : ["- None reported."];
 
   return [
-    "# Fork Drift Agent Task Package",
+    "# Codebase Argus Agent Task Package",
     "",
     `Task ID: \`${taskId}\``,
     `Generated: ${generatedAt}`,

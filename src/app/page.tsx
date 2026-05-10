@@ -37,7 +37,7 @@ import type { LocalAnalysisReport } from "@/lib/local-analyzer";
 const DEFAULT_UPSTREAM = "";
 const DEFAULT_FORK = "";
 const DEFAULT_PR_HEAD = "";
-const STORAGE_KEY = "fork-drift-sentinel:repos";
+const STORAGE_KEY = "codebase-argus:repos";
 
 type SavedRepos = {
   upstream: string;
@@ -66,7 +66,7 @@ export default function Home() {
   const [copiedManifest, setCopiedManifest] = useState(false);
   const [actionSchedule, setActionSchedule] = useState("17 1 * * *");
   const [actionIssueNumber, setActionIssueNumber] = useState("");
-  const [appName, setAppName] = useState("Fork Drift Sentinel");
+  const [appName, setAppName] = useState("Codebase Argus");
   const [appUrl, setAppUrl] = useState(() =>
     typeof window === "undefined" ? "" : window.location.origin,
   );
@@ -488,14 +488,14 @@ export default function Home() {
       <section className="hero">
         <div>
           <div className="brand-row">
-            <span className="brand-mark">FD</span>
-            <span className="brand-name">Fork Drift Sentinel</span>
+            <span className="brand-mark">CA</span>
+            <span className="brand-name">Codebase Argus</span>
           </div>
-          <h1>Review PRs, CI failures, and fork syncs with evidence.</h1>
+          <h1>Coordinate multi-agent codebase review across PRs, CI, and fork syncs.</h1>
           <p>
-            The hosted UI analyzes safely. The local CLI can also run gated
-            agent workflows for upstream review and downstream merge or rebase
-            sync branches.
+            Upstream maintainers get PR and CI tribunals. Downstream
+            maintainers get merge or rebase evidence, agent handoff packages,
+            and gated sync branches.
           </p>
         </div>
 
@@ -540,7 +540,7 @@ export default function Home() {
           </label>
           <div className="form-actions">
             <button type="submit" disabled={loading}>
-              {loading ? "Analyzing..." : "Analyze drift"}
+              {loading ? "Analyzing..." : "Analyze sync"}
             </button>
             <button
               type="button"
@@ -581,11 +581,11 @@ export default function Home() {
       <section className="capability-grid" aria-label="Capabilities">
         <article>
           <span>Overall</span>
-          <h2>Evidence-first guardrails</h2>
+          <h2>Evidence-first tribunal</h2>
           <p>
-            Findings carry files, checks, patch lines, policy gates, provider
-            consensus, or local git output. Execution defaults to dry-run and
-            needs explicit CLI flags.
+            Multiple agents can review the same files, checks, patch lines,
+            policy gates, and local git output. Consensus raises confidence;
+            execution still requires explicit CLI flags.
           </p>
         </article>
         <article>
@@ -598,7 +598,7 @@ export default function Home() {
         </article>
         <article>
           <span>Downstream</span>
-          <h2>Merge/rebase fork review</h2>
+          <h2>Fork sync tribunal</h2>
           <p>
             Compare a fork with upstream, project merge conflicts, simulate
             rebase, ask multiple agents to choose a path, then run a gated sync
@@ -796,7 +796,7 @@ export default function Home() {
           <h2>Start with a downstream repository pair.</h2>
           <p>
             Enter an upstream repository and a fork repository. If the PR head
-            fork differs from the branch you track for drift, fill that in too.
+            fork differs from the branch you track for downstream sync, fill that in too.
             If GitHub API rate limits block the browser report, run local
             merge/rebase analysis directly.
           </p>
@@ -857,12 +857,12 @@ function GitHubAppSetupPanel({
             />
           </label>
           <div className="command-list">
-            <code>/fds help</code>
-            <code>/fds review</code>
-            <code>/fds ci</code>
-            <code>/fds autofix</code>
-            <code>/fds pause</code>
-            <code>/fds resume</code>
+            <code>/argus help</code>
+            <code>/argus review</code>
+            <code>/argus ci</code>
+            <code>/argus autofix</code>
+            <code>/argus pause</code>
+            <code>/argus resume</code>
           </div>
         </div>
         <div className="setup-output">
@@ -888,7 +888,7 @@ function GitHubAppSetupPanel({
 function buildClientGitHubAppManifest(name: string, url: string) {
   const baseUrl = (url || "https://your-host.example.com").replace(/\/+$/g, "");
   return {
-    name: name || "Fork Drift Sentinel",
+    name: name || "Codebase Argus",
     url: baseUrl,
     hook_attributes: {
       url: `${baseUrl}/api/github/webhook`,
@@ -1260,9 +1260,9 @@ function ActionsWorkflowPanel({
     <article className="panel actions-panel">
       <div className="panel-header">
         <div>
-          <h2>Downstream Drift Action</h2>
+          <h2>Downstream Sync Action</h2>
           <p>
-            Generate a scheduled workflow for downstream fork drift reports,
+            Generate a scheduled workflow for downstream fork sync reports,
             merge-tree evidence, range-diff, and optional tracking issue
             comments. Use the CLI `sync` lane when the agent should create a
             real integration branch.
@@ -1521,7 +1521,7 @@ function DriftPanel({ report }: { report: ForkReport }) {
     <article className="panel drift-panel">
       <div className="panel-header">
         <div>
-          <h2>Fork Drift</h2>
+          <h2>Downstream Fork Sync</h2>
           <p>
             {report.fork.fullName} vs {report.upstream.fullName}
           </p>
@@ -1971,8 +1971,8 @@ function MethodPanel({ report }: { report: ForkReport }) {
 
       <ul>
         <li>
-          Drift uses GitHub compare from upstream default branch to fork default
-          branch.
+          Downstream review uses GitHub compare from upstream default branch to
+          fork default branch.
         </li>
         <li>
           PR Radar filters upstream open PRs where the head repository equals
@@ -2020,7 +2020,7 @@ function buildSummary(report: ForkReport | null) {
       },
       {
         label: "Signal",
-        value: "Drift + PRs",
+        value: "Sync + PRs",
         detail: "Compares branches, open PRs, checks, and cleanup hints.",
       },
       {

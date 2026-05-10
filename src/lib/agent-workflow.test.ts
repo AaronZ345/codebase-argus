@@ -76,7 +76,7 @@ describe("agent workflow helpers", () => {
   test("parses agent logs into safety signals", () => {
     const summary = parseAgentSessionLog([
       "Fetched upstream/main and fork/main",
-      "Created backup/fork-drift-before-rebase-20260505-123000",
+      "Created backup/codebase-argus-before-rebase-20260505-123000",
       "CONFLICT (content): Merge conflict in src/core.ts",
       "npm run build failed",
     ].join("\n"));
@@ -95,7 +95,7 @@ describe("agent workflow helpers", () => {
     expect(
       parseAgentSessionLog([
         "Fetched upstream/main and fork/main",
-        "Created backup/fork-drift-before-rebase-20260505-123000",
+        "Created backup/codebase-argus-before-rebase-20260505-123000",
         "npm run build passed",
       ].join("\n")).safeToPush,
     ).toBe(false);
@@ -103,7 +103,7 @@ describe("agent workflow helpers", () => {
     expect(
       parseAgentSessionLog([
         "Fetched upstream/main and fork/main",
-        "Created backup/fork-drift-before-rebase-20260505-123000",
+        "Created backup/codebase-argus-before-rebase-20260505-123000",
         "git rebase upstream/main",
         "npm run build passed",
         "nothing to commit",
@@ -128,7 +128,7 @@ describe("agent workflow helpers", () => {
     expect(summary.lines).toHaveLength(3);
   });
 
-  test("builds a self-contained GitHub Actions workflow for scheduled drift reports", () => {
+  test("builds a self-contained GitHub Actions workflow for scheduled downstream reviews", () => {
     const workflow = buildGitHubActionsWorkflow({
       upstream: "owner/upstream",
       fork: "me/fork",
@@ -139,7 +139,7 @@ describe("agent workflow helpers", () => {
       issueNumber: "42",
     });
 
-    expect(workflow).toContain("name: Fork Drift Sentinel");
+    expect(workflow).toContain("name: Codebase Argus Downstream Review");
     expect(workflow).toContain("repository_dispatch:");
     expect(workflow).toContain("types: [upstream-updated]");
     expect(workflow).toContain("- cron: \"17 1 * * *\"");
@@ -148,7 +148,7 @@ describe("agent workflow helpers", () => {
     expect(workflow).toContain("git cherry -v");
     expect(workflow).toContain("git range-diff --no-color");
     expect(workflow).toContain("cat \"$report\" >> \"$GITHUB_STEP_SUMMARY\"");
-    expect(workflow).toContain("gh issue comment \"$DRIFT_REPORT_ISSUE\"");
+    expect(workflow).toContain("gh issue comment \"$ARGUS_REPORT_ISSUE\"");
   });
 
   test("builds an agent task package with gates, evidence, and log format", () => {
@@ -191,7 +191,7 @@ describe("agent workflow helpers", () => {
       },
     });
 
-    expect(packageMarkdown).toContain("# Fork Drift Agent Task Package");
+    expect(packageMarkdown).toContain("# Codebase Argus Agent Task Package");
     expect(packageMarkdown).toContain("Task ID: `me-fork-feature-demo-prepare`");
     expect(packageMarkdown).toContain("Risk: conflict");
     expect(packageMarkdown).toContain("Forbidden actions");
@@ -208,14 +208,14 @@ describe("agent workflow helpers", () => {
     const workflow = buildPullRequestReviewWorkflow({
       reviewEndpoint: "https://example.com/api/pr-agent-review",
       provider: "openai-api",
-      policyPath: ".fork-drift-sentinel.yml",
+      policyPath: ".codebase-argus.yml",
     });
 
-    expect(workflow).toContain("name: Fork Drift Sentinel PR Review");
+    expect(workflow).toContain("name: Codebase Argus PR Review");
     expect(workflow).toContain("pull_request:");
-    expect(workflow).toContain("FDS_REVIEW_ENDPOINT");
+    expect(workflow).toContain("ARGUS_REVIEW_ENDPOINT");
     expect(workflow).toContain("https://example.com/api/pr-agent-review");
-    expect(workflow).toContain(".fork-drift-sentinel.yml");
+    expect(workflow).toContain(".codebase-argus.yml");
     expect(workflow).toContain("pull_request_target");
     expect(workflow).toContain("github.rest.issues.createComment");
   });

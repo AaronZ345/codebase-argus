@@ -1,7 +1,7 @@
-# Fork Drift Sentinel
+# Codebase Argus
 
 <p align="center">
-  <strong>Evidence-first PR review and fork maintenance for maintainers.</strong>
+  <strong>Multi-agent codebase review for PRs, CI, and downstream fork syncs.</strong>
 </p>
 
 <p align="center">
@@ -21,12 +21,13 @@
   <img alt="GitHub App" src="https://img.shields.io/badge/GitHub%20App-webhook-24292f?style=flat-square">
 </p>
 
-Fork Drift Sentinel is a maintainer firewall. It reviews pull requests, explains
-CI failures, plans narrow autofixes, and measures downstream fork drift before a
-long-lived fork turns into merge debt.
+Codebase Argus coordinates multiple reviewers around the same codebase evidence.
+Upstream maintainers use it for pull requests, CI failures, and narrow autofix
+plans. Downstream maintainers use it to compare long-lived forks against
+upstream before a merge or rebase turns into hidden debt.
 
-It keeps model output tied to evidence: patches, checks, files, branch state,
-policy gates, provider consensus, and local git simulations.
+It keeps model output tied to patches, checks, files, branch state, policy
+gates, provider consensus, and local git simulations.
 
 ## At a glance
 
@@ -35,7 +36,7 @@ policy gates, provider consensus, and local git simulations.
 | PR review | `owner/repo#123` or a GitHub PR URL | risk summary, findings, inline-ready comments |
 | CI review | local log file or failing GitHub Actions jobs | likely root cause, affected command, fix path |
 | Autofix plan | PR review findings | gated branch plan for mechanical fixes |
-| Fork drift | upstream repo + fork repo | ahead/behind, conflict notes, rebase/merge risk |
+| Downstream fork sync | upstream repo + fork repo | ahead/behind, conflict notes, rebase/merge risk |
 | Agent handoff | dashboard or CLI report | task package with commands and acceptance gates |
 
 ## Quick start
@@ -50,9 +51,9 @@ Open <http://localhost:3000>.
 For command-line review:
 
 ```bash
-npm run fds -- review owner/repo#123
-npm run fds -- ci-github owner/repo#123
-npm run fds -- drift owner/upstream me/fork
+npm run argus -- review owner/repo#123
+npm run argus -- ci-github owner/repo#123
+npm run argus -- downstream owner/upstream me/fork
 ```
 
 Public GitHub repositories work from the hosted demo. Private repositories,
@@ -63,22 +64,23 @@ review belong in a local or deployed server environment.
 
 ### Pull request review
 
-Fork Drift Sentinel fetches the PR shape that maintainers usually need before
+Codebase Argus fetches the PR shape that maintainers usually need before
 trusting a review:
 
 - metadata, labels, author, branch refs, and mergeability;
 - changed files, patch excerpts, commits, and prior reviews;
 - check status and GitHub Actions run metadata;
-- policy rules from `.fork-drift-sentinel.yml`;
+- policy rules from `.codebase-argus.yml`;
 - stacked PR signals and merge-queue states.
 
 The deterministic reviewer looks for failing checks, source changes without
 tests, workflow edits, dependency changes, sensitive paths, policy violations,
 large diffs, stacked PR bases, and blocked/dirty/behind/unstable merge states.
 
-### AI review and tribunal
+### Multi-agent review and tribunal
 
-The same evidence package can go to one provider or several providers:
+The same upstream or downstream evidence package can go to one provider or
+several providers:
 
 | Provider | Mode |
 | --- | --- |
@@ -89,9 +91,9 @@ The same evidence package can go to one provider or several providers:
 | `claude-cli` | local CLI |
 | `gemini-cli` | local CLI |
 
-Tribunal mode runs multiple reviewers against the same PR, groups matching
-findings, raises confidence when providers agree, and keeps provider failures in
-the report.
+Tribunal mode runs multiple reviewers against the same PR, CI log, or fork sync
+context. It groups matching findings, raises confidence when providers agree,
+and keeps provider failures in the report.
 
 ### CI failures
 
@@ -105,7 +107,7 @@ covers narrow lanes such as npm lockfile refreshes, snapshot updates, and
 formatter or linter fixes. The output includes commands, verification gates, and
 push instructions for the maintainer or agent working in a real checkout.
 
-### Downstream fork drift
+### Downstream fork sync
 
 The fork workflow compares an upstream repository and a long-lived fork. Local
 analysis runs git in `.cache/repos` and temporary worktrees, then reports:
@@ -122,45 +124,45 @@ analysis runs git in `.cache/repos` and temporary worktrees, then reports:
 The CLI is the best entry point for scripts and coding agents.
 
 ```bash
-npm run fds -- --help
+npm run argus -- --help
 ```
 
 ### PR review
 
 ```bash
-npm run fds -- review owner/repo#123
-npm run fds -- review owner/repo#123 --policy .fork-drift-sentinel.yml
-npm run fds -- review owner/repo#123 --provider openai-api --model gpt-4.1-mini
-npm run fds -- review owner/repo#123 --tribunal openai-api,claude-cli,codex-cli
+npm run argus -- review owner/repo#123
+npm run argus -- review owner/repo#123 --policy .codebase-argus.yml
+npm run argus -- review owner/repo#123 --provider openai-api --model gpt-4.1-mini
+npm run argus -- review owner/repo#123 --tribunal openai-api,claude-cli,codex-cli
 ```
 
 ### CI review
 
 ```bash
-npm run fds -- ci-log logs/failure.txt
-npm run fds -- ci-log logs/failure.txt --provider codex-cli
-GITHUB_TOKEN=... npm run fds -- ci-github owner/repo#123
+npm run argus -- ci-log logs/failure.txt
+npm run argus -- ci-log logs/failure.txt --provider codex-cli
+GITHUB_TOKEN=... npm run argus -- ci-github owner/repo#123
 ```
 
 ### Autofix plan
 
 ```bash
-npm run fds -- autofix-plan owner/repo#123
+npm run argus -- autofix-plan owner/repo#123
 ```
 
-### Fork drift
+### Downstream fork sync
 
 ```bash
-npm run fds -- drift owner/upstream me/fork
-npm run fds -- drift owner/upstream me/fork --upstream-branch main --fork-branch feature/demo
-npm run fds -- drift owner/upstream me/fork --fork-branch feature/demo --provider codex-cli
+npm run argus -- downstream owner/upstream me/fork
+npm run argus -- downstream owner/upstream me/fork --upstream-branch main --fork-branch feature/demo
+npm run argus -- downstream owner/upstream me/fork --fork-branch feature/demo --provider codex-cli
 ```
 
 ### Sync planning
 
 ```bash
-npm run fds -- sync owner/upstream me/fork --mode merge --fork-branch feature/demo --test "npm test"
-npm run fds -- sync owner/upstream me/fork --mode rebase --fork-branch feature/demo --execute --push --create-pr
+npm run argus -- sync owner/upstream me/fork --mode merge --fork-branch feature/demo --test "npm test"
+npm run argus -- sync owner/upstream me/fork --mode rebase --fork-branch feature/demo --execute --push --create-pr
 ```
 
 Output defaults to markdown. Use `--format json` for tool integration.
@@ -169,13 +171,16 @@ Install the binary locally:
 
 ```bash
 npm link
-fork-drift-sentinel review owner/repo#123
-fork-drift-sentinel autofix-plan owner/repo#123
+codebase-argus review owner/repo#123
+codebase-argus autofix-plan owner/repo#123
 ```
+
+`npm run fds`, the `drift` command, and the `fork-drift-sentinel` binary remain
+as compatibility aliases.
 
 ## Policy file
 
-Add `.fork-drift-sentinel.yml` when the repository has local review rules:
+Add `.codebase-argus.yml` when the repository has local review rules:
 
 ```yaml
 requiredChecks: passing
@@ -240,20 +245,20 @@ GITHUB_APP_PRIVATE_KEY_BASE64=...
 Review controls:
 
 ```bash
-FDS_WEBHOOK_PROVIDER=rule-based
-FDS_WEBHOOK_PROVIDER=openai-api
-FDS_WEBHOOK_MODEL=gpt-4.1-mini
-FDS_WEBHOOK_TRIBUNAL=openai-api,claude-cli,codex-cli
-FDS_WEBHOOK_INLINE_COMMENTS=true
-FDS_WEBHOOK_INCLUDE_CI_LOGS=true
-FDS_WEBHOOK_DRY_RUN=true
+ARGUS_WEBHOOK_PROVIDER=rule-based
+ARGUS_WEBHOOK_PROVIDER=openai-api
+ARGUS_WEBHOOK_MODEL=gpt-4.1-mini
+ARGUS_WEBHOOK_TRIBUNAL=openai-api,claude-cli,codex-cli
+ARGUS_WEBHOOK_INLINE_COMMENTS=true
+ARGUS_WEBHOOK_INCLUDE_CI_LOGS=true
+ARGUS_WEBHOOK_DRY_RUN=true
 ```
 
 Webhook behavior:
 
 - verifies `X-Hub-Signature-256` before payload handling;
 - reviews `opened`, `reopened`, `ready_for_review`, and `synchronize` events;
-- skips draft PRs and PRs labeled `fds:paused`;
+- skips draft PRs and PRs labeled `argus:paused`;
 - uses GitHub App installation tokens when app credentials are present;
 - posts GitHub PR reviews with event `COMMENT`;
 - anchors high-signal findings to changed patch lines when inline comments are enabled;
@@ -262,16 +267,17 @@ Webhook behavior:
 ### PR comment commands
 
 ```text
-/fds help
-/fds review
-/fds ci
-/fds autofix
-/fds pause
-/fds resume
+/argus help
+/argus review
+/argus ci
+/argus autofix
+/argus pause
+/argus resume
 ```
 
-`/fds pause` applies the `fds:paused` label. `/fds resume` removes it.
-`/fds autofix` posts the same gated plan as the CLI.
+`/argus pause` applies the `argus:paused` label. `/argus resume` removes it.
+`/argus autofix` posts the same gated plan as the CLI. Legacy `/fds` commands
+still work.
 
 ## AI provider setup
 
@@ -286,9 +292,9 @@ GEMINI_API_KEY=...
 Optional model overrides:
 
 ```bash
-FDS_OPENAI_API_MODEL=gpt-4.1-mini
-FDS_ANTHROPIC_API_MODEL=claude-3-5-sonnet-20241022
-FDS_GEMINI_API_MODEL=gemini-2.0-flash
+ARGUS_OPENAI_API_MODEL=gpt-4.1-mini
+ARGUS_ANTHROPIC_API_MODEL=claude-3-5-sonnet-20241022
+ARGUS_GEMINI_API_MODEL=gemini-2.0-flash
 ```
 
 Local CLI providers expect authenticated commands:
@@ -304,14 +310,14 @@ gemini --help
 The repository includes a skill package:
 
 ```text
-skills/fork-drift-sentinel/
+skills/codebase-argus/
 ```
 
 Install it into a Codex skill directory:
 
 ```bash
 mkdir -p ~/.codex/skills
-cp -R skills/fork-drift-sentinel ~/.codex/skills/
+cp -R skills/codebase-argus ~/.codex/skills/
 ```
 
 The skill directs agents to use the CLI first, keep tokens out of logs, run
@@ -321,7 +327,7 @@ comments.
 
 ## Write model
 
-Fork Drift Sentinel keeps write operations narrow:
+Codebase Argus keeps write operations narrow:
 
 | Surface | Write behavior |
 | --- | --- |

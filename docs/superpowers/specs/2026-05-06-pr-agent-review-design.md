@@ -2,7 +2,7 @@
 
 ## Goal
 
-Fork Drift Sentinel keeps its current name and gains a normal pull-request review path plus direct AI review adapters. The tool should serve both upstream maintainers reviewing incoming PRs and downstream maintainers reviewing long-lived fork drift.
+Codebase Argus is the current product name. It serves both upstream maintainers reviewing incoming PRs and downstream maintainers reviewing long-lived fork syncs, with the same evidence package available to one provider or a multi-agent tribunal.
 
 ## Scope
 
@@ -20,7 +20,7 @@ This version does not automatically comment on PRs, approve changes, request cha
 
 `src/lib/github.ts` remains the browser-facing GitHub REST helper and adds PR review data fetching. `src/lib/pr-review.ts` owns context normalization, deterministic findings, prompt construction, provider output validation, and markdown formatting. `src/lib/agent-providers.ts` owns API and CLI provider execution from server-only routes. `src/app/api/pr-agent-review/route.ts` accepts a review context plus provider settings and returns a normalized review result.
 
-The page adds a PR Review panel above the existing fork drift panels. Users can fetch a PR report with the browser token, inspect the rule-based baseline, then optionally run an AI review through a server route when running locally or in an environment configured with provider keys.
+The page adds a PR Review panel above the existing downstream fork sync panels. Users can fetch a PR report with the browser token, inspect the rule-based baseline, then optionally run an AI review through a server route when running locally or in an environment configured with provider keys.
 
 ## Safety
 

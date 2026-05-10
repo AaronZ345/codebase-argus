@@ -107,7 +107,7 @@ export async function POST(request: Request) {
         error:
           caught instanceof Error
             ? caught.message
-            : "Drift agent review failed.",
+            : "Downstream agent review failed.",
       },
       { status: 500 },
     );

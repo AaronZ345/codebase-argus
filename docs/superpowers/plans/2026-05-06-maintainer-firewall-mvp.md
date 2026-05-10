@@ -4,7 +4,7 @@
 
 **Goal:** Add evidence-first review, policy-as-code, multi-agent tribunal, PR review Actions, and worktree rebase simulation as a coherent MVP.
 
-**Architecture:** `pr-review.ts` stays responsible for normalized review results. New focused helpers own policy parsing, evidence extraction, tribunal aggregation, and workflow generation. `local-analyzer.ts` adds a temporary worktree simulation result to the existing local drift report. The UI exposes these features through compact controls in the existing panels.
+**Architecture:** `pr-review.ts` stays responsible for normalized review results. New focused helpers own policy parsing, evidence extraction, tribunal aggregation, and workflow generation. `local-analyzer.ts` adds a temporary worktree simulation result to the existing local downstream report. The UI exposes these features through compact controls in the existing panels.
 
 **Tech Stack:** Next.js App Router, React client component, TypeScript, Vitest, GitHub REST API, local `git`, Node `child_process`, no new npm dependencies.
 
@@ -43,7 +43,7 @@
 - [ ] Add tests for a generated PR review workflow.
 - [ ] Generate a workflow that posts PR context to a server endpoint, or runs baseline policy checks when no endpoint is configured.
 
-### Task 4: Fork Drift Pro
+### Task 4: Downstream Fork Sync
 
 **Files:**
 - Modify: `src/lib/local-analyzer.test.ts`
@@ -62,5 +62,5 @@
 - Modify: `README.md`
 
 - [ ] Add policy text input, tribunal controls, PR review workflow export, and evidence display.
-- [ ] Keep current project name and existing fork drift panels.
+- [ ] Rename the project surface while keeping existing downstream fork sync panels.
 - [ ] Run `npm test`, `npm run lint`, and `npm run build`.

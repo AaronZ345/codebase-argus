@@ -96,12 +96,12 @@ describe("autofix plans", () => {
   test("builds a gated branch plan for narrow fix lanes", () => {
     const plan = buildAutofixPlan({ report, review });
 
-    expect(plan.branch).toBe("fds/autofix-pr-12");
+    expect(plan.branch).toBe("argus/autofix-pr-12");
     expect(plan.lanes.map((lane) => lane.kind)).toEqual([
       "lockfile-refresh",
       "snapshot-refresh",
     ]);
-    expect(plan.markdown).toContain("git switch -c fds/autofix-pr-12 FETCH_HEAD");
+    expect(plan.markdown).toContain("git switch -c argus/autofix-pr-12 FETCH_HEAD");
     expect(plan.markdown).toContain("npm install --package-lock-only");
     expect(plan.markdown).toContain("npm test -- -u");
     expect(plan.markdown).toContain("push the autofix branch");
