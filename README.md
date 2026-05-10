@@ -1,7 +1,7 @@
 # Codebase Argus
 
 <p align="center">
-  <strong>Multi-agent codebase review for PRs, CI, and downstream fork syncs.</strong>
+  <strong>Multi-agent PR review and downstream fork-sync risk analysis for maintainers.</strong>
 </p>
 
 <p align="center">
@@ -21,13 +21,19 @@
   <img alt="GitHub App" src="https://img.shields.io/badge/GitHub%20App-webhook-24292f?style=flat-square">
 </p>
 
-Codebase Argus coordinates multiple reviewers around the same codebase evidence.
-Upstream maintainers use it for pull requests, CI failures, and narrow autofix
-plans. Downstream maintainers use it to compare long-lived forks against
-upstream before a merge or rebase turns into hidden debt.
+<p align="center">
+  <img src="docs/assets/codebase-argus-home.png" alt="Codebase Argus dashboard showing PR, CI, and downstream fork-sync review workflows">
+</p>
 
-It keeps model output tied to patches, checks, files, branch state, policy
-gates, provider consensus, and local git simulations.
+Codebase Argus gives maintainers a review desk for codebase evidence. It reviews
+pull requests, failing CI logs, and long-lived fork syncs with the same set of
+signals: patches, checks, files, branch state, policy gates, provider consensus,
+and local git simulations.
+
+Use it when a single reviewer is not enough, but a fully automatic merge bot is
+too risky. Argus can ask one model, several models, or local AI CLIs to review
+the same evidence, then keeps every finding tied to something a maintainer can
+check.
 
 ## At a glance
 
@@ -38,6 +44,39 @@ gates, provider consensus, and local git simulations.
 | Autofix plan | PR review findings | gated branch plan for mechanical fixes |
 | Downstream fork sync | upstream repo + fork repo | ahead/behind, conflict notes, rebase/merge risk |
 | Agent handoff | dashboard or CLI report | task package with commands and acceptance gates |
+
+## Common workflows
+
+### Review a risky PR with multiple agents
+
+```bash
+npm run argus -- review owner/repo#123 --tribunal openai-api,claude-cli,codex-cli
+```
+
+Argus fetches the PR metadata, changed files, checks, reviews, commits, and
+patch excerpts, then asks every configured reviewer to look at the same context.
+Matching findings are grouped so agreement is visible; provider failures stay in
+the report instead of disappearing.
+
+### Debug failing GitHub Actions logs
+
+```bash
+GITHUB_TOKEN=... npm run argus -- ci-github owner/repo#123 --provider codex-cli
+```
+
+The CI lane pulls failing job logs from GitHub Actions and asks for the first
+failing command, likely root cause, affected files, and the smallest fix path.
+
+### Check whether a fork can safely rebase
+
+```bash
+npm run argus -- downstream owner/upstream me/fork --fork-branch feature/demo --tribunal codex-cli,claude-cli,gemini-cli
+```
+
+The downstream lane compares the fork with upstream, projects merge conflicts
+with `git merge-tree`, simulates a rebase in a temporary worktree, checks
+patch-equivalent commits with `git cherry`, and summarizes semantic movement
+with `git range-diff`.
 
 ## Quick start
 
