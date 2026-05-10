@@ -12,6 +12,8 @@
   <a href="#github-app">GitHub App</a>
   ·
   <a href="#agent-playbook">Agent Playbook</a>
+  ·
+  <a href="#skill-registries">Skill Registries</a>
 </p>
 
 <p align="center">
@@ -360,10 +362,27 @@ Recommended setup:
   project instructions, or install the skill from `skills/codebase-argus/`.
 - Codex: either read the portable playbook directly or install the skill
   from `skills/codebase-argus/`.
-- Claude Code: reference the portable playbook from the project instructions, or
-  import it into whichever local skill/custom-instruction layout you use.
+- Claude Code: install the plugin marketplace from this repository:
 
-ClawHub publish preparation:
+  ```text
+  /plugin marketplace add AaronZ345/codebase-argus
+  /plugin install codebase-argus@codebase-argus
+  ```
+
+  Or copy the playbook into `.claude/skills/codebase-argus/SKILL.md` for a
+  project-local skill.
+
+## Skill registries
+
+Codebase Argus is packaged for open `SKILL.md` registries and agent-specific
+install surfaces:
+
+- Claude Code plugin marketplace: `AaronZ345/codebase-argus`
+- ClawHub/OpenClaw skill folder: `skills/codebase-argus`
+- Codex/OpenAI-compatible Agent Skills folder: `skills/codebase-argus`
+- SkillsMD public registry repository: `AaronZ345/codebase-argus`
+
+ClawHub publish command:
 
 ```bash
 clawhub skill publish skills/codebase-argus \
@@ -371,6 +390,16 @@ clawhub skill publish skills/codebase-argus \
   --name "Codebase Argus" \
   --version 0.1.0 \
   --tags latest,code-review,pull-request,ci,multi-agent,fork-sync
+```
+
+SkillsMD submission payload:
+
+```json
+{
+  "repo": "AaronZ345/codebase-argus",
+  "name": "codebase-argus",
+  "description": "Multi-agent PR, CI, and downstream fork-sync review desk for coding agents."
+}
 ```
 
 The playbook directs agents to use the CLI first, keep tokens out of logs, run

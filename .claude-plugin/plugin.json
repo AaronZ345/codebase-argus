@@ -1,0 +1,11 @@
+{
+  "name": "codebase-argus",
+  "description": "Multi-agent PR, CI, and downstream fork-sync review desk for Claude Code.",
+  "version": "0.1.0",
+  "author": {
+    "name": "AaronZ345"
+  },
+  "homepage": "https://aaronz345.github.io/codebase-argus/",
+  "repository": "https://github.com/AaronZ345/codebase-argus",
+  "license": "MIT"
+}

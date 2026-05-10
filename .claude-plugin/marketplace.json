@@ -1,0 +1,14 @@
+{
+  "name": "codebase-argus",
+  "description": "Claude Code plugin marketplace for the Codebase Argus multi-agent codebase review skill.",
+  "owner": {
+    "name": "Codebase Argus contributors"
+  },
+  "plugins": [
+    {
+      "name": "codebase-argus",
+      "source": "./",
+      "description": "Multi-agent PR, CI, and downstream fork-sync review desk for Claude Code."
+    }
+  ]
+}
