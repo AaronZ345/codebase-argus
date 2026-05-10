@@ -351,17 +351,27 @@ instructions.
 
 ```text
 agent-playbooks/codebase-argus/PLAYBOOK.md   # portable OpenClaw / Codex / Claude Code playbook
-skills/codebase-argus/SKILL.md               # Codex adapter with skill metadata
+skills/codebase-argus/SKILL.md               # ClawHub/OpenClaw-compatible skill entrypoint
 ```
 
 Recommended setup:
 
 - OpenClaw: add `agent-playbooks/codebase-argus/PLAYBOOK.md` to the agent or
-  project instructions.
-- Codex: either read the portable playbook directly or install the Codex adapter
+  project instructions, or install the skill from `skills/codebase-argus/`.
+- Codex: either read the portable playbook directly or install the skill
   from `skills/codebase-argus/`.
 - Claude Code: reference the portable playbook from the project instructions, or
   import it into whichever local skill/custom-instruction layout you use.
+
+ClawHub publish preparation:
+
+```bash
+clawhub skill publish skills/codebase-argus \
+  --slug codebase-argus \
+  --name "Codebase Argus" \
+  --version 0.1.0 \
+  --tags latest,code-review,pull-request,ci,multi-agent,fork-sync
+```
 
 The playbook directs agents to use the CLI first, keep tokens out of logs, run
 multi-provider review before risky downstream integration, and ask for explicit

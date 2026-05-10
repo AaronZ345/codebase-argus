@@ -1,0 +1,13 @@
+.clawhub/
+.clawdhub/
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.log
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp

@@ -1,23 +1,55 @@
 ---
 name: codebase-argus
-description: Codex adapter for the portable Codebase Argus agent playbook. Use when coordinating evidence-first multi-agent review for upstream GitHub pull requests, CI failures, GitHub Actions logs, GitHub App webhook review, /argus PR comment commands, autofix branch planning, OpenAI/Claude/Gemini/Codex provider tribunals, downstream merge/rebase work, or long-lived fork sync against an upstream repository.
+description: Portable Codebase Argus agent playbook for evidence-first multi-agent review of GitHub pull requests, CI failures, GitHub Actions logs, GitHub App webhook review, /argus PR comment commands, autofix branch planning, OpenAI/Claude/Gemini/Codex provider tribunals, downstream merge/rebase work, and long-lived fork sync against an upstream repository.
+version: 0.1.0
 metadata:
   origin: local
   owner: aaron
+  openclaw:
+    requires:
+      bins:
+        - node
+        - npm
+        - git
+    envVars:
+      - name: GITHUB_TOKEN
+        required: false
+        description: Optional GitHub token for private repositories, higher API limits, and GitHub Actions log fetches.
+      - name: OPENAI_API_KEY
+        required: false
+        description: Optional key for OpenAI API reviews.
+      - name: ANTHROPIC_API_KEY
+        required: false
+        description: Optional key for Anthropic API reviews.
+      - name: GEMINI_API_KEY
+        required: false
+        description: Optional key for Gemini API reviews.
+      - name: GITHUB_WEBHOOK_SECRET
+        required: false
+        description: Optional GitHub App webhook secret when deploying the review server.
+      - name: GITHUB_APP_ID
+        required: false
+        description: Optional GitHub App id when deploying the review server.
+      - name: GITHUB_APP_PRIVATE_KEY
+        required: false
+        description: Optional GitHub App private key when deploying the review server.
+      - name: GITHUB_APP_PRIVATE_KEY_BASE64
+        required: false
+        description: Optional base64-encoded GitHub App private key.
+    emoji: "👁️"
+    homepage: https://github.com/AaronZ345/codebase-argus
 ---
 
 # Codebase Argus
 
-This is the Codex adapter for the portable Codebase Argus agent playbook. The
-canonical, agent-neutral instructions live at
-`agent-playbooks/codebase-argus/PLAYBOOK.md` in the repository and can also be
-used by OpenClaw, Claude Code, or any coding agent that accepts Markdown project
-instructions.
+Use this portable agent playbook for evidence-first codebase review across
+GitHub PRs, CI failures, and downstream fork integration work. It works as an
+OpenClaw/ClawHub skill, Codex project instruction, Claude Code project
+instruction, or a plain Markdown playbook for any coding agent that can run
+local shell commands.
 
-Use this playbook for evidence-first codebase review across GitHub PRs, CI
-failures, and downstream fork integration work. Both upstream and downstream
-workflows can send the same evidence package to one provider or a multi-agent
-tribunal.
+Both upstream and downstream workflows can send the same evidence package to one
+provider or a multi-agent tribunal.
 
 ## Fast Path
 

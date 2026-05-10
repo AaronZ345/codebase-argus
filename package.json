@@ -2,6 +2,7 @@
   "name": "codebase-argus",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "bin": {
     "codebase-argus": "./bin/codebase-argus"
   },
