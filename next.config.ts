@@ -4,8 +4,8 @@ const isGitHubPages = process.env.GITHUB_PAGES === "true";
 
 const nextConfig: NextConfig = {
   output: isGitHubPages ? "export" : undefined,
-  basePath: isGitHubPages ? "/fork-drift-sentinel" : undefined,
-  assetPrefix: isGitHubPages ? "/fork-drift-sentinel/" : undefined,
+  basePath: isGitHubPages ? "/codebase-argus" : undefined,
+  assetPrefix: isGitHubPages ? "/codebase-argus/" : undefined,
   trailingSlash: isGitHubPages,
 };
 

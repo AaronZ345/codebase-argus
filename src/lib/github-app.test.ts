@@ -287,8 +287,7 @@ describe("GitHub App review helpers", () => {
 
   test("parses PR comment commands", () => {
     expect(parseReviewCommand("/argus review")).toEqual({ action: "review" });
-    expect(parseReviewCommand("/fds review")).toEqual({ action: "review" });
-    expect(parseReviewCommand("/fork-drift ci")).toEqual({ action: "ci" });
+    expect(parseReviewCommand("/codebase-argus ci")).toEqual({ action: "ci" });
     expect(parseReviewCommand("looks good")).toBeNull();
   });
 

@@ -596,8 +596,6 @@ export function usage(): string {
     "  codebase-argus autofix-plan <owner/repo#123|github-pr-url> [options]",
     "  codebase-argus sync <upstream-owner/repo> <fork-owner/repo> [options]",
     "",
-    "Legacy aliases: drift command, fork-drift-sentinel binary",
-    "",
     "Options:",
     "  --provider <provider>       rule-based, openai-api, anthropic-api, gemini-api, codex-cli, claude-cli, gemini-cli",
     "  --tribunal <providers>      comma list, optional model with provider:model",

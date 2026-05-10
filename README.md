@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://aaronz345.github.io/fork-drift-sentinel/">Live demo</a>
+  <a href="https://aaronz345.github.io/codebase-argus/">Live demo</a>
   ·
   <a href="#cli">CLI</a>
   ·
@@ -175,8 +175,8 @@ codebase-argus review owner/repo#123
 codebase-argus autofix-plan owner/repo#123
 ```
 
-`npm run fds`, the `drift` command, and the `fork-drift-sentinel` binary remain
-as compatibility aliases.
+`downstream` is the primary fork-sync review command. `sync` is reserved for
+explicit integration branches.
 
 ## Policy file
 
@@ -276,8 +276,7 @@ Webhook behavior:
 ```
 
 `/argus pause` applies the `argus:paused` label. `/argus resume` removes it.
-`/argus autofix` posts the same gated plan as the CLI. Legacy `/fds` commands
-still work.
+`/argus autofix` posts the same gated plan as the CLI.
 
 ## AI provider setup
 

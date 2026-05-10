@@ -3,13 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "bin": {
-    "codebase-argus": "./bin/codebase-argus",
-    "fork-drift-sentinel": "./bin/fork-drift-sentinel"
+    "codebase-argus": "./bin/codebase-argus"
   },
   "scripts": {
     "dev": "next dev",
     "argus": "tsx src/cli.ts",
-    "fds": "tsx src/cli.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

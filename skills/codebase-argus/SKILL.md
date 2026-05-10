@@ -137,7 +137,7 @@ Supported PR comment commands:
 ```
 
 `/argus pause` applies `argus:paused`; automatic review skips PRs with that label.
-`/argus resume` removes it. Legacy `/fds` commands still work.
+`/argus resume` removes it.
 
 Do not approve, request changes, merge, push, or post comments outside this
 configured webhook path unless the user explicitly asks.

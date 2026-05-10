@@ -19,7 +19,6 @@ import { DEFAULT_REVIEW_POLICY } from "./review-policy";
 
 type Env = Record<string, string | undefined>;
 const PAUSE_LABEL = "argus:paused";
-const LEGACY_PAUSE_LABEL = "fds:paused";
 
 type JsonResponse = {
   ok: boolean;
@@ -448,7 +447,7 @@ export async function handleGitHubWebhook(input: {
 export function parseReviewCommand(body: string): ReviewCommand | null {
   const match = body
     .trim()
-    .match(/^\/(?:argus|codebase-argus|fds|fork-drift)(?:\s+([a-z-]+))?/i);
+    .match(/^\/(?:argus|codebase-argus)(?:\s+([a-z-]+))?/i);
   if (!match) {
     return null;
   }
@@ -576,8 +575,6 @@ async function handleIssueCommentWebhook(
         "- `/argus autofix` posts a gated autofix branch plan.",
         `- \`/argus pause\` pauses automatic review with the \`${PAUSE_LABEL}\` label.`,
         "- `/argus resume` removes the pause label.",
-        "",
-        "Legacy `/fds` commands still work.",
       ].join("\n"),
       fetchImpl: input.fetchImpl,
     });
@@ -821,7 +818,7 @@ function appendCiFindings(
 }
 
 function envValue(env: Env, name: string): string {
-  return env[`ARGUS_${name}`]?.trim() || env[`FDS_${name}`]?.trim() || "";
+  return env[`ARGUS_${name}`]?.trim() || "";
 }
 
 function envFlag(env: Env, name: string): string {
@@ -829,7 +826,7 @@ function envFlag(env: Env, name: string): string {
 }
 
 function isPauseLabel(label: string): boolean {
-  return label === PAUSE_LABEL || label === LEGACY_PAUSE_LABEL;
+  return label === PAUSE_LABEL;
 }
 
 function maxRisk(risks: ReviewResult["risk"][]): ReviewResult["risk"] {

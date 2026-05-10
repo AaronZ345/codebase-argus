@@ -6,11 +6,9 @@ export const dynamic = "force-static";
 export async function GET() {
   const baseUrl =
     process.env.ARGUS_PUBLIC_URL?.trim() ||
-    process.env.FDS_PUBLIC_URL?.trim() ||
-    "https://aaronz345.github.io/fork-drift-sentinel";
+    "https://aaronz345.github.io/codebase-argus";
   const name =
     process.env.ARGUS_GITHUB_APP_NAME?.trim() ||
-    process.env.FDS_GITHUB_APP_NAME?.trim() ||
     "Codebase Argus";
 
   return NextResponse.json(buildGitHubAppManifest({ name, url: baseUrl }));
