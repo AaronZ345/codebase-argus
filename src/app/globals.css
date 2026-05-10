@@ -11,6 +11,8 @@
   --red: #b42318;
   --blue: #315a99;
   --shadow: 0 18px 50px rgba(24, 32, 45, 0.08);
+  --font-geist-sans: Arial, Helvetica, sans-serif;
+  --font-geist-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 html {
@@ -29,7 +31,7 @@ body {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 247, 249, 0.98)),
     var(--background);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
