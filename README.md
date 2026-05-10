@@ -11,7 +11,7 @@
   ·
   <a href="#github-app">GitHub App</a>
   ·
-  <a href="#codex-skill">Codex Skill</a>
+  <a href="#agent-playbook">Agent Playbook</a>
 </p>
 
 <p align="center">
@@ -343,22 +343,27 @@ claude --help
 gemini --help
 ```
 
-## Codex skill
+## Agent playbook
 
-The repository includes a skill package:
+The repository includes a portable agent playbook. It is not tied to Codex:
+OpenClaw, Codex, Claude Code, and other coding agents can all use the same
+instructions.
 
 ```text
-skills/codebase-argus/
+agent-playbooks/codebase-argus/PLAYBOOK.md   # portable OpenClaw / Codex / Claude Code playbook
+skills/codebase-argus/SKILL.md               # Codex adapter with skill metadata
 ```
 
-Install it into a Codex skill directory:
+Recommended setup:
 
-```bash
-mkdir -p ~/.codex/skills
-cp -R skills/codebase-argus ~/.codex/skills/
-```
+- OpenClaw: add `agent-playbooks/codebase-argus/PLAYBOOK.md` to the agent or
+  project instructions.
+- Codex: either read the portable playbook directly or install the Codex adapter
+  from `skills/codebase-argus/`.
+- Claude Code: reference the portable playbook from the project instructions, or
+  import it into whichever local skill/custom-instruction layout you use.
 
-The skill directs agents to use the CLI first, keep tokens out of logs, run
+The playbook directs agents to use the CLI first, keep tokens out of logs, run
 multi-provider review before risky downstream integration, and ask for explicit
 authorization before approve, merge, rebase, push, PR creation, or GitHub
 comments.

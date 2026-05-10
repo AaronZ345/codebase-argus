@@ -1,23 +1,12 @@
----
-name: codebase-argus
-description: Codex adapter for the portable Codebase Argus agent playbook. Use when coordinating evidence-first multi-agent review for upstream GitHub pull requests, CI failures, GitHub Actions logs, GitHub App webhook review, /argus PR comment commands, autofix branch planning, OpenAI/Claude/Gemini/Codex provider tribunals, downstream merge/rebase work, or long-lived fork sync against an upstream repository.
-metadata:
-  origin: local
-  owner: aaron
----
+# Codebase Argus Agent Playbook
 
-# Codebase Argus
+Use this playbook when an AI coding agent needs evidence-first review for
+GitHub pull requests, CI failures, GitHub Actions logs, autofix planning,
+downstream merge/rebase work, or long-lived fork sync against an upstream
+repository.
 
-This is the Codex adapter for the portable Codebase Argus agent playbook. The
-canonical, agent-neutral instructions live at
-`agent-playbooks/codebase-argus/PLAYBOOK.md` in the repository and can also be
-used by OpenClaw, Claude Code, or any coding agent that accepts Markdown project
-instructions.
-
-Use this playbook for evidence-first codebase review across GitHub PRs, CI
-failures, and downstream fork integration work. Both upstream and downstream
-workflows can send the same evidence package to one provider or a multi-agent
-tribunal.
+The same playbook works for OpenClaw, Codex, Claude Code, and other coding
+agents that can read Markdown instructions and run local shell commands.
 
 ## Fast Path
 
@@ -72,7 +61,8 @@ For multi-agent review:
 npm run argus -- review owner/repo#123 --tribunal openai-api,claude-cli,codex-cli
 ```
 
-Treat output as review assistance. Do not approve, merge, push, or post comments automatically unless the user explicitly asks.
+Treat output as review assistance. Do not approve, merge, push, or post comments
+automatically unless the user explicitly asks.
 
 ## CI Failure Review
 
@@ -162,7 +152,8 @@ Prioritize findings with concrete evidence:
 - merge queue states such as blocked, behind, dirty, or unstable;
 - agreement between multiple providers.
 
-Low-confidence model-only claims need manual verification before reporting them as facts.
+Low-confidence model-only claims need manual verification before reporting them
+as facts.
 
 ## Downstream Fork Sync And Integration Review
 
@@ -211,4 +202,7 @@ Use the local dashboard when a human needs to inspect the same evidence visually
 npm run dev
 ```
 
-Open the Downstream Fork Sync, Downstream Merge/Rebase Risk, and Downstream Agent Workflow panels. The local analyzer works in `.cache/repos` and temporary worktrees, and must not push or force-push by itself. Actual sync execution belongs to the CLI `sync` command and only runs after explicit flags.
+Open the Downstream Fork Sync, Downstream Merge/Rebase Risk, and Downstream Agent
+Workflow panels. The local analyzer works in `.cache/repos` and temporary
+worktrees, and must not push or force-push by itself. Actual sync execution
+belongs to the CLI `sync` command and only runs after explicit flags.
