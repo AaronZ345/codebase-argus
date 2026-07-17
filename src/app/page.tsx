@@ -67,9 +67,8 @@ export default function Home() {
   const [actionSchedule, setActionSchedule] = useState("17 1 * * *");
   const [actionIssueNumber, setActionIssueNumber] = useState("");
   const [appName, setAppName] = useState("Codebase Argus");
-  const [appUrl, setAppUrl] = useState(() =>
-    typeof window === "undefined" ? "" : window.location.origin,
-  );
+  const [appUrl, setAppUrl] = useState("");
+  const [taskGeneratedAt, setTaskGeneratedAt] = useState("");
   const [prRef, setPrRef] = useState("");
   const [prReport, setPrReport] = useState<PullRequestReviewReport | null>(null);
   const [prReview, setPrReview] = useState<ReviewResult | null>(null);
@@ -126,6 +125,15 @@ export default function Home() {
     }, 0);
 
     return () => window.clearTimeout(restore);
+  }, []);
+
+  useEffect(() => {
+    const initialize = window.setTimeout(() => {
+      setAppUrl(window.location.origin);
+      setTaskGeneratedAt(new Date().toISOString());
+    }, 0);
+
+    return () => window.clearTimeout(initialize);
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -456,8 +464,17 @@ export default function Home() {
         forkBranch,
         mode: runbookMode,
         report: localReport,
+        generatedAt: taskGeneratedAt,
       }),
-    [forkBranch, forkRepo, localReport, runbookMode, upstreamBranch, upstreamRepo],
+    [
+      forkBranch,
+      forkRepo,
+      localReport,
+      runbookMode,
+      taskGeneratedAt,
+      upstreamBranch,
+      upstreamRepo,
+    ],
   );
   const agentPrompt = useMemo(
     () =>
@@ -484,22 +501,48 @@ export default function Home() {
   );
 
   return (
-    <main className="shell">
-      <section className="hero">
-        <div>
+    <>
+      <a className="skip-link" href="#main-workspace">
+        Skip to workspace
+      </a>
+      <main className="shell" id="main-workspace">
+        <section className="hero">
+        <div className="hero-copy">
           <div className="brand-row">
             <span className="brand-mark">CA</span>
             <span className="brand-name">Codebase Argus</span>
+            <a
+              className="source-link"
+              href="https://github.com/AaronZ345/codebase-argus"
+              target="_blank"
+              rel="noreferrer"
+            >
+              GitHub ↗
+            </a>
           </div>
-          <h1>Coordinate multi-agent codebase review across PRs, CI, and fork syncs.</h1>
+          <h1>Review PRs, failing CI, and fork syncs with shared evidence.</h1>
           <p>
-            Upstream maintainers get PR and CI tribunals. Downstream
-            maintainers get merge or rebase evidence, agent handoff packages,
-            and gated sync branches.
+            Give deterministic checks and multiple coding agents the same files,
+            logs, policies, and git state. Findings stay reviewable, and every
+            write path remains explicitly gated.
           </p>
+          <div className="hero-links" aria-label="Start with a workflow">
+            <a className="primary-link" href="#pr-review">
+              Review a pull request
+            </a>
+            <a href="#fork-sync">Inspect a fork sync</a>
+          </div>
         </div>
 
         <form className="repo-form" onSubmit={handleSubmit}>
+          <div className="repo-form-heading">
+            <span>Downstream workflow</span>
+            <h2>Inspect a fork before you sync it</h2>
+            <p>
+              Start with public repositories; add a token only for higher API
+              limits.
+            </p>
+          </div>
           <label>
             Upstream repository
             <input
@@ -576,7 +619,7 @@ export default function Home() {
             GitHub rate limits unauthenticated requests.
           </p>
         </form>
-      </section>
+        </section>
 
       <section className="capability-grid" aria-label="Capabilities">
         <article>
@@ -614,56 +657,6 @@ export default function Home() {
           </p>
         </article>
       </section>
-
-      <section className="capability-grid" aria-label="Automation lanes">
-        <article>
-          <span>Queue</span>
-          <h2>Merge queue signals</h2>
-          <p>
-            Review output flags blocked, behind, dirty, and unstable queue states
-            before a maintainer spends review time.
-          </p>
-        </article>
-        <article>
-          <span>Stack</span>
-          <h2>Stacked PR signals</h2>
-          <p>
-            PRs targeting non-default base branches get dependency review notes
-            so stacked work is reviewed in the right order.
-          </p>
-        </article>
-        <article>
-          <span>Checks</span>
-          <h2>Direct CI log ingest</h2>
-          <p>
-            `ci-github` fetches failing GitHub Actions job logs and feeds them
-            into the same rule-based, API, CLI, or tribunal reviewers.
-          </p>
-        </article>
-        <article>
-          <span>Fix</span>
-          <h2>Gated autofix plans</h2>
-          <p>
-            `autofix-plan` prepares lockfile, snapshot, and formatter lanes with
-            explicit verification commands.
-          </p>
-        </article>
-      </section>
-
-      <GitHubAppSetupPanel
-        appName={appName}
-        onAppNameChange={setAppName}
-        appUrl={appUrl}
-        onAppUrlChange={setAppUrl}
-        copiedManifest={copiedManifest}
-        onCopyManifest={async () => {
-          await navigator.clipboard.writeText(
-            JSON.stringify(buildClientGitHubAppManifest(appName, appUrl), null, 2),
-          );
-          setCopiedManifest(true);
-          window.setTimeout(() => setCopiedManifest(false), 1400);
-        }}
-      />
 
       {error ? <div className="error-panel">{error}</div> : null}
 
@@ -747,6 +740,44 @@ export default function Home() {
         hostedDemo={hostedDemo}
       />
 
+      <section
+        className="capability-grid secondary-capabilities"
+        aria-label="Automation lanes"
+      >
+        <article>
+          <span>Queue</span>
+          <h2>Merge queue signals</h2>
+          <p>
+            Review output flags blocked, behind, dirty, and unstable queue states
+            before a maintainer spends review time.
+          </p>
+        </article>
+        <article>
+          <span>Stack</span>
+          <h2>Stacked PR signals</h2>
+          <p>
+            PRs targeting non-default base branches get dependency review notes
+            so stacked work is reviewed in the right order.
+          </p>
+        </article>
+        <article>
+          <span>Checks</span>
+          <h2>Direct CI log ingest</h2>
+          <p>
+            `ci-github` fetches failing GitHub Actions job logs and feeds them
+            into the same rule-based, API, CLI, or tribunal reviewers.
+          </p>
+        </article>
+        <article>
+          <span>Fix</span>
+          <h2>Gated autofix plans</h2>
+          <p>
+            `autofix-plan` prepares lockfile, snapshot, and formatter lanes with
+            explicit verification commands.
+          </p>
+        </article>
+      </section>
+
       <ActionsWorkflowPanel
         schedule={actionSchedule}
         onScheduleChange={setActionSchedule}
@@ -758,6 +789,21 @@ export default function Home() {
           await navigator.clipboard.writeText(actionsWorkflow);
           setCopiedWorkflow(true);
           window.setTimeout(() => setCopiedWorkflow(false), 1400);
+        }}
+      />
+
+      <GitHubAppSetupPanel
+        appName={appName}
+        onAppNameChange={setAppName}
+        appUrl={appUrl}
+        onAppUrlChange={setAppUrl}
+        copiedManifest={copiedManifest}
+        onCopyManifest={async () => {
+          await navigator.clipboard.writeText(
+            JSON.stringify(buildClientGitHubAppManifest(appName, appUrl), null, 2),
+          );
+          setCopiedManifest(true);
+          window.setTimeout(() => setCopiedManifest(false), 1400);
         }}
       />
 
@@ -802,7 +848,8 @@ export default function Home() {
           </p>
         </section>
       )}
-    </main>
+      </main>
+    </>
   );
 }
 
@@ -962,7 +1009,7 @@ function PullRequestReviewPanel({
   onCopyMarkdown: () => Promise<void>;
 }) {
   return (
-    <article className="panel pr-review-panel">
+    <article className="panel pr-review-panel" id="pr-review">
       <div className="panel-header">
         <div>
           <h2>Upstream PR Review</h2>
@@ -1671,7 +1718,7 @@ function LocalRiskPanel({
   hostedDemo: boolean;
 }) {
   return (
-    <article className="panel local-risk-panel">
+    <article className="panel local-risk-panel" id="fork-sync">
       <div className="panel-header">
         <div>
           <h2>Downstream Merge/Rebase Risk</h2>

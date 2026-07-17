@@ -7,6 +7,10 @@
 <p align="center">
   <a href="https://aaronz345.github.io/codebase-argus/">Live demo</a>
   ·
+  <a href="#try-it-on-a-public-pr">Quick start</a>
+  ·
+  <a href="docs/case-studies/cowagent-2965.md">Case study</a>
+  ·
   <a href="#cli">CLI</a>
   ·
   <a href="#github-app">GitHub App</a>
@@ -36,6 +40,25 @@ Use it when a single reviewer is not enough, but a fully automatic merge bot is
 too risky. Argus can ask one model, several models, or local AI CLIs to review
 the same evidence, then keeps every finding tied to something a maintainer can
 check.
+
+## Try it on a public PR
+
+The shortest useful path is a local, read-only review. No model key is needed for the deterministic pass.
+
+```bash
+git clone https://github.com/AaronZ345/codebase-argus.git
+cd codebase-argus
+npm ci
+npm run argus -- review zhayujie/CowAgent#2965
+```
+
+To give the same evidence to an installed Codex CLI:
+
+```bash
+npm run argus -- review zhayujie/CowAgent#2965 --provider codex-cli
+```
+
+The [CowAgent #2965 case study](docs/case-studies/cowagent-2965.md) records both passes: low risk, no blocking issue, and one remaining integration-test boundary for a maintainer to judge.
 
 ## At a glance
 
@@ -80,7 +103,7 @@ with `git merge-tree`, simulates a rebase in a temporary worktree, checks
 patch-equivalent commits with `git cherry`, and summarizes semantic movement
 with `git range-diff`.
 
-## Quick start
+## Run the dashboard locally
 
 ```bash
 npm install

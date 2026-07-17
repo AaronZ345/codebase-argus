@@ -17,6 +17,7 @@
 
 html {
   min-height: 100%;
+  scroll-behavior: smooth;
 }
 
 html,
@@ -66,6 +67,15 @@ button {
   padding: 0 16px;
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(20, 108, 95, 0.24);
+  outline-offset: 3px;
+}
+
 button:hover {
   background: var(--accent-strong);
 }
@@ -75,18 +85,41 @@ button:disabled {
   opacity: 0.7;
 }
 
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  border-radius: 6px;
+  background: var(--foreground);
+  color: white;
+  padding: 10px 14px;
+  transform: translateY(-160%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 .shell {
   width: min(1180px, calc(100vw - 40px));
   margin: 0 auto;
-  padding: 36px 0 56px;
+  padding: 34px 0 64px;
 }
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
-  gap: 28px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(380px, 0.92fr);
+  gap: 42px;
   align-items: stretch;
-  margin-bottom: 22px;
+  margin-bottom: 24px;
+}
+
+.hero-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .brand-row {
@@ -96,7 +129,8 @@ button:disabled {
   color: var(--muted);
   font-size: 0.9rem;
   font-weight: 650;
-  margin-bottom: 26px;
+  width: 100%;
+  margin-bottom: 30px;
 }
 
 .brand-mark {
@@ -116,12 +150,19 @@ button:disabled {
   letter-spacing: 0;
 }
 
+.source-link {
+  margin-left: auto;
+  color: var(--foreground);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .hero h1 {
   max-width: 720px;
-  font-size: clamp(2.3rem, 6vw, 5rem);
-  line-height: 0.96;
-  letter-spacing: 0;
-  margin-bottom: 24px;
+  font-size: clamp(3rem, 5.4vw, 4.65rem);
+  line-height: 0.98;
+  letter-spacing: -0.052em;
+  margin-bottom: 22px;
 }
 
 .hero p {
@@ -129,6 +170,33 @@ button:disabled {
   color: var(--muted);
   font-size: 1.04rem;
   line-height: 1.7;
+}
+
+.hero-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.hero-links a {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--foreground);
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0 15px;
+}
+
+.hero-links .primary-link {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
 }
 
 .repo-form,
@@ -144,8 +212,33 @@ button:disabled {
 
 .repo-form {
   display: grid;
-  gap: 16px;
-  padding: 18px;
+  gap: 15px;
+  padding: 22px;
+}
+
+.repo-form-heading {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 2px;
+}
+
+.repo-form-heading span {
+  color: var(--accent);
+  font-size: 0.73rem;
+  font-weight: 780;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.repo-form-heading h2 {
+  font-size: 1.12rem;
+  line-height: 1.25;
+}
+
+.repo-form-heading p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .repo-form label {
@@ -198,9 +291,13 @@ button:disabled {
 
 .capability-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 18px;
+}
+
+.secondary-capabilities {
+  margin-top: 18px;
 }
 
 .capability-grid article {
@@ -293,6 +390,7 @@ button:disabled {
 .panel {
   box-shadow: none;
   overflow: hidden;
+  scroll-margin-top: 20px;
 }
 
 .panel-header {
@@ -1151,6 +1249,10 @@ pre {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .capability-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .commit-row {
     grid-template-columns: 76px minmax(0, 1fr);
   }
@@ -1223,6 +1325,14 @@ pre {
   .form-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .hero-links {
+    width: 100%;
+  }
+
+  .hero-links a {
+    width: 100%;
   }
 
   button {
