@@ -11,6 +11,8 @@
   ·
   <a href="docs/case-studies/cowagent-2965.md">Case study</a>
   ·
+  <a href="https://github.com/AaronZ345/codebase-argus-action">GitHub Action</a>
+  ·
   <a href="#cli">CLI</a>
   ·
   <a href="#github-app">GitHub App</a>
@@ -59,6 +61,18 @@ npm run argus -- review zhayujie/CowAgent#2965 --provider codex-cli
 ```
 
 The [CowAgent #2965 case study](docs/case-studies/cowagent-2965.md) records both passes: low risk, no blocking issue, and one remaining integration-test boundary for a maintainer to judge.
+
+## Run it in pull requests
+
+The companion [Codebase Argus Action](https://github.com/AaronZ345/codebase-argus-action) puts the deterministic review in a workflow job summary. It is read-only by default and needs no model key.
+
+```yaml
+- uses: AaronZ345/codebase-argus-action@v1
+  with:
+    pull-request: ${{ github.repository }}#${{ github.event.pull_request.number }}
+```
+
+The Action also exposes failing-CI diagnosis, autofix planning, optional agent providers, and a pinned `core-ref`.
 
 ## At a glance
 
