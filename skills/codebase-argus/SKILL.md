@@ -1,7 +1,7 @@
 ---
 name: codebase-argus
 description: Portable Codebase Argus agent playbook for evidence-first multi-agent review of GitHub pull requests, CI failures, GitHub Actions logs, GitHub App webhook review, /argus PR comment commands, autofix branch planning, OpenAI/Claude/Gemini/Codex provider tribunals, downstream merge/rebase work, and long-lived fork sync against an upstream repository.
-version: 0.1.0
+version: 0.2.0
 metadata:
   origin: local
   owner: aaron
@@ -67,6 +67,14 @@ GITHUB_TOKEN=<read-only-token> npm run argus -- review owner/repo#123
 ```
 
 Do not print tokens. Do not write tokens to files.
+
+For a read-only GitHub Actions job summary, use the companion Action:
+
+```yaml
+- uses: AaronZ345/codebase-argus-action@v1
+  with:
+    pull-request: ${{ github.repository }}#${{ github.event.pull_request.number }}
+```
 
 ## Upstream PR Review
 
