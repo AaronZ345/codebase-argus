@@ -38,6 +38,28 @@ const DEFAULT_UPSTREAM = "";
 const DEFAULT_FORK = "";
 const DEFAULT_PR_HEAD = "";
 const STORAGE_KEY = "codebase-argus:repos";
+const HOSTED_DEMO_CAPABILITIES = [
+  {
+    feature: "Public PR and fork inspection",
+    availability: "Available here",
+    tone: "available",
+  },
+  {
+    feature: "Merge-tree and rebase projection",
+    availability: "Local/server",
+    tone: "restricted",
+  },
+  {
+    feature: "AI providers and tribunals",
+    availability: "Local/server",
+    tone: "restricted",
+  },
+  {
+    feature: "GitHub App and webhooks",
+    availability: "Server",
+    tone: "restricted",
+  },
+] as const;
 
 type SavedRepos = {
   upstream: string;
@@ -129,12 +151,12 @@ export default function Home() {
 
   useEffect(() => {
     const initialize = window.setTimeout(() => {
-      setAppUrl(window.location.origin);
+      setAppUrl(hostedDemo ? "" : window.location.origin);
       setTaskGeneratedAt(new Date().toISOString());
     }, 0);
 
     return () => window.clearTimeout(initialize);
-  }, []);
+  }, [hostedDemo]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -426,7 +448,10 @@ export default function Home() {
     }
   }
 
-  const summary = useMemo(() => buildSummary(report), [report]);
+  const summary = useMemo(
+    () => buildSummary(report, hostedDemo),
+    [hostedDemo, report],
+  );
   const upstreamBranch =
     report?.upstream.defaultBranch ?? localReport?.upstream.branch ?? "main";
   const forkBranch =
@@ -511,6 +536,7 @@ export default function Home() {
           <div className="brand-row">
             <span className="brand-mark">CA</span>
             <span className="brand-name">Codebase Argus</span>
+            {hostedDemo ? <HostedDemoBoundary /> : null}
             <a
               className="source-link"
               href="https://github.com/AaronZ345/codebase-argus"
@@ -797,8 +823,12 @@ export default function Home() {
         onAppNameChange={setAppName}
         appUrl={appUrl}
         onAppUrlChange={setAppUrl}
+        hostedDemo={hostedDemo}
         copiedManifest={copiedManifest}
         onCopyManifest={async () => {
+          if (!isValidServerUrl(appUrl)) {
+            return;
+          }
           await navigator.clipboard.writeText(
             JSON.stringify(buildClientGitHubAppManifest(appName, appUrl), null, 2),
           );
@@ -853,11 +883,55 @@ export default function Home() {
   );
 }
 
+function HostedDemoBoundary() {
+  return (
+    <details className="deployment-mode">
+      <summary aria-label="Static demo capabilities">
+        <span className="deployment-mode-dot" aria-hidden="true" />
+        <span>Static demo</span>
+        <span className="deployment-mode-scope">Public repos only</span>
+        <svg
+          aria-hidden="true"
+          className="deployment-mode-chevron"
+          viewBox="0 0 16 16"
+        >
+          <path d="M4 6.25 8 10l4-3.75" />
+        </svg>
+      </summary>
+      <div className="deployment-mode-card">
+        <div className="deployment-mode-heading">
+          <strong>GitHub Pages capability boundary</strong>
+          <p>
+            This static build reads public GitHub data in your browser. Server
+            routes, model providers, and local git stay off this host.
+          </p>
+        </div>
+        <dl>
+          {HOSTED_DEMO_CAPABILITIES.map((capability) => (
+            <div key={capability.feature}>
+              <dt>{capability.feature}</dt>
+              <dd className={capability.tone}>{capability.availability}</dd>
+            </div>
+          ))}
+        </dl>
+        <a
+          href="https://github.com/AaronZ345/codebase-argus#run-the-dashboard-locally"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Run locally for full access ↗
+        </a>
+      </div>
+    </details>
+  );
+}
+
 function GitHubAppSetupPanel({
   appName,
   onAppNameChange,
   appUrl,
   onAppUrlChange,
+  hostedDemo,
   copiedManifest,
   onCopyManifest,
 }: {
@@ -865,10 +939,18 @@ function GitHubAppSetupPanel({
   onAppNameChange: (value: string) => void;
   appUrl: string;
   onAppUrlChange: (value: string) => void;
+  hostedDemo: boolean;
   copiedManifest: boolean;
   onCopyManifest: () => Promise<void>;
 }) {
   const manifest = buildClientGitHubAppManifest(appName, appUrl);
+  const canGenerateManifest = isValidServerUrl(appUrl);
+  const webhookUrl = canGenerateManifest
+    ? manifest.hook_attributes.url
+    : "Requires a deployed server URL";
+  const manifestEndpoint = canGenerateManifest
+    ? `${appUrl.trim().replace(/\/+$/g, "")}/api/github/app-manifest`
+    : "Requires a deployed server URL";
 
   return (
     <section className="panel app-setup-panel">
@@ -880,12 +962,31 @@ function GitHubAppSetupPanel({
             review, CI, pause, resume, and autofix plans.
           </p>
         </div>
-        <button type="button" onClick={onCopyManifest}>
-          {copiedManifest ? "Copied" : "Copy manifest"}
-        </button>
+        <div className="panel-header-actions">
+          {hostedDemo ? (
+            <StatusPill tone="neutral" label="Server-only" />
+          ) : null}
+          <button
+            type="button"
+            onClick={onCopyManifest}
+            disabled={!canGenerateManifest}
+          >
+            {canGenerateManifest
+              ? copiedManifest
+                ? "Copied"
+                : "Copy manifest"
+              : "Enter server URL"}
+          </button>
+        </div>
       </div>
       <div className="setup-grid">
         <div className="setup-controls">
+          {hostedDemo ? (
+            <p className="server-boundary-note" id="github-app-server-note">
+              GitHub Pages has no webhook or API routes. Enter the URL of a
+              deployed Codebase Argus server to generate a usable manifest.
+            </p>
+          ) : null}
           <label className="compact-field">
             App name
             <input
@@ -900,6 +1001,11 @@ function GitHubAppSetupPanel({
               value={appUrl}
               onChange={(event) => onAppUrlChange(event.target.value)}
               placeholder="https://your-host.example.com"
+              type="url"
+              inputMode="url"
+              aria-describedby={
+                hostedDemo ? "github-app-server-note" : undefined
+              }
               spellCheck={false}
             />
           </label>
@@ -915,21 +1021,34 @@ function GitHubAppSetupPanel({
         <div className="setup-output">
           <div>
             <span>Webhook</span>
-            <code>{manifest.hook_attributes.url}</code>
+            <code>{webhookUrl}</code>
           </div>
           <div>
             <span>Manifest endpoint</span>
-            <code>{`${appUrl.replace(/\/+$/g, "")}/api/github/app-manifest`}</code>
+            <code>{manifestEndpoint}</code>
           </div>
           <textarea
             className="manifest-box"
-            value={JSON.stringify(manifest, null, 2)}
+            value={
+              canGenerateManifest
+                ? JSON.stringify(manifest, null, 2)
+                : "Enter the base URL of a deployed Codebase Argus server to generate the GitHub App manifest."
+            }
             readOnly
           />
         </div>
       </div>
     </section>
   );
+}
+
+function isValidServerUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function buildClientGitHubAppManifest(name: string, url: string) {
@@ -2052,13 +2171,15 @@ function StatusPill({
   return <span className={`status-pill ${tone}`}>{label}</span>;
 }
 
-function buildSummary(report: ForkReport | null) {
+function buildSummary(report: ForkReport | null, hostedDemo: boolean) {
   if (!report) {
     return [
       {
         label: "Mode",
-        value: "Read-only",
-        detail: "No write scopes, no database, no token persistence.",
+        value: hostedDemo ? "Static demo" : "Read-only",
+        detail: hostedDemo
+          ? "Public GitHub data in-browser; no server routes or local git."
+          : "No write scopes, no database, no token persistence.",
       },
       {
         label: "Inputs",
