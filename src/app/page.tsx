@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildAgentPrompt,
   buildAgentTaskPackage,
@@ -97,6 +97,8 @@ export default function Home() {
   const [prError, setPrError] = useState("");
   const [prLoading, setPrLoading] = useState(false);
   const [agentReviewLoading, setAgentReviewLoading] = useState(false);
+  const prRequestVersion = useRef(0);
+  const prAgentController = useRef<AbortController | null>(null);
   const [agentReviewProvider, setAgentReviewProvider] =
     useState<ReviewProvider>("openai-api");
   const [agentReviewModel, setAgentReviewModel] = useState("");
@@ -123,6 +125,11 @@ export default function Home() {
   const [copiedPrWorkflow, setCopiedPrWorkflow] = useState(false);
   const [copiedReviewMarkdown, setCopiedReviewMarkdown] = useState(false);
   const hostedDemo = process.env.NEXT_PUBLIC_HOSTED_DEMO === "true";
+
+  useEffect(() => () => {
+    prRequestVersion.current += 1;
+    prAgentController.current?.abort();
+  }, []);
 
   useEffect(() => {
     const restore = window.setTimeout(() => {
@@ -232,9 +239,26 @@ export default function Home() {
     }
   }
 
+  function resetPrReview() {
+    prRequestVersion.current += 1;
+    prAgentController.current?.abort();
+    prAgentController.current = null;
+    setAgentReviewLoading(false);
+    setPrReport(null);
+    setPrReview(null);
+    setPrError("");
+  }
+
+  function handlePrRefChange(value: string) {
+    resetPrReview();
+    setPrLoading(false);
+    setPrRef(value);
+  }
+
   async function handlePullRequestAnalyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPrError("");
+    resetPrReview();
+    const version = prRequestVersion.current;
     setPrLoading(true);
 
     try {
@@ -245,6 +269,7 @@ export default function Home() {
         number: ref.number,
         token,
       });
+      if (version !== prRequestVersion.current) return;
       const baseline = buildRuleBasedReview(
         nextReport,
         parseReviewPolicy(policyText),
@@ -252,16 +277,21 @@ export default function Home() {
       setPrReport(nextReport);
       setPrReview(baseline);
     } catch (caught) {
-      setPrReport(null);
-      setPrReview(null);
+      if (version !== prRequestVersion.current) return;
       setPrError(caught instanceof Error ? caught.message : "PR review failed.");
     } finally {
-      setPrLoading(false);
+      if (version === prRequestVersion.current) setPrLoading(false);
     }
   }
 
-  async function handleAgentReview() {
-    if (!prReport) {
+  async function runPrAgentReview(
+    selection: {
+      provider?: ReviewProvider;
+      model?: string;
+      providers?: Array<{ provider: ReviewProvider }>;
+    },
+  ) {
+    if (!prReport || prLoading) {
       setPrError("Analyze a pull request before running an agent review.");
       return;
     }
@@ -270,22 +300,30 @@ export default function Home() {
       return;
     }
 
+    const version = prRequestVersion.current;
+    const controller = new AbortController();
+    prAgentController.current?.abort();
+    prAgentController.current = controller;
+    const isCurrent = () =>
+      version === prRequestVersion.current &&
+      prAgentController.current === controller &&
+      !controller.signal.aborted;
+
     setPrError("");
     setAgentReviewLoading(true);
     try {
       const response = await fetch("/api/pr-agent-review", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
-          provider: agentReviewProvider,
-          model: agentReviewModel,
+          ...selection,
           policy: parseReviewPolicy(policyText),
           report: prReport,
         }),
       });
       const body = (await response.json()) as ReviewResult | { error?: string };
+      if (!isCurrent()) return;
       if (!response.ok) {
         throw new Error(
           "error" in body && body.error ? body.error : "Agent review failed.",
@@ -293,24 +331,21 @@ export default function Home() {
       }
       setPrReview(body as ReviewResult);
     } catch (caught) {
-      setPrError(
-        caught instanceof Error ? caught.message : "Agent review failed.",
-      );
+      if (!isCurrent()) return;
+      setPrError(caught instanceof Error ? caught.message : "Agent review failed.");
     } finally {
-      setAgentReviewLoading(false);
+      if (isCurrent()) {
+        prAgentController.current = null;
+        setAgentReviewLoading(false);
+      }
     }
   }
 
-  async function handleTribunalReview() {
-    if (!prReport) {
-      setPrError("Analyze a pull request before running tribunal review.");
-      return;
-    }
-    if (hostedDemo) {
-      setPrError("Tribunal review needs a local or server deployment with API keys or CLIs.");
-      return;
-    }
+  async function handleAgentReview() {
+    await runPrAgentReview({ provider: agentReviewProvider, model: agentReviewModel });
+  }
 
+  async function handleTribunalReview() {
     const providers = tribunalProviders
       .split(",")
       .map((value) => value.trim())
@@ -320,35 +355,7 @@ export default function Home() {
       setPrError("Enter at least one tribunal provider.");
       return;
     }
-
-    setPrError("");
-    setAgentReviewLoading(true);
-    try {
-      const response = await fetch("/api/pr-agent-review", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          providers,
-          policy: parseReviewPolicy(policyText),
-          report: prReport,
-        }),
-      });
-      const body = (await response.json()) as ReviewResult | { error?: string };
-      if (!response.ok) {
-        throw new Error(
-          "error" in body && body.error ? body.error : "Tribunal review failed.",
-        );
-      }
-      setPrReview(body as ReviewResult);
-    } catch (caught) {
-      setPrError(
-        caught instanceof Error ? caught.message : "Tribunal review failed.",
-      );
-    } finally {
-      setAgentReviewLoading(false);
-    }
+    await runPrAgentReview({ providers });
   }
 
   async function handleDriftAgentReview() {
@@ -698,7 +705,7 @@ export default function Home() {
 
       <PullRequestReviewPanel
         prRef={prRef}
-        onPrRefChange={setPrRef}
+        onPrRefChange={handlePrRefChange}
         loading={prLoading}
         onAnalyze={handlePullRequestAnalyze}
         report={prReport}
@@ -1207,7 +1214,7 @@ function PullRequestReviewPanel({
               type="button"
               className="secondary-button"
               onClick={onAgentReview}
-              disabled={!report || agentLoading || hostedDemo}
+              disabled={!report || loading || agentLoading || hostedDemo}
             >
               {hostedDemo
                 ? "Server-only"
@@ -1227,7 +1234,7 @@ function PullRequestReviewPanel({
               type="button"
               className="secondary-button"
               onClick={onTribunalReview}
-              disabled={!report || agentLoading || hostedDemo}
+              disabled={!report || loading || agentLoading || hostedDemo}
             >
               {agentLoading ? "Running tribunal..." : "Run tribunal"}
             </button>
